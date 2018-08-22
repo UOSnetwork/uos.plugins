@@ -31,8 +31,8 @@ namespace eosio {
         std::vector<singularity::transaction_t> parse_transactions_from_block(
                 eosio::chain::signed_block_ptr block);
 
-        void set_property_transaction(string account_name, string property_name, string property_value);
-        string main_report(string);
+        string trigger_save_rate_transactions(string);
+        void set_rate(string name, string value);
 
         friend class uos_rates;
 
@@ -41,18 +41,21 @@ namespace eosio {
         uint64_t last_calc_block = 0;
         const uint32_t period = 30*2;
         const uint32_t window = 86400*2*100;
+        const string contract_acc = "user.1";
+        const string init_priv_key = "5K2FaURJbVHNKcmJfjHYbbkrDXAt2uUMRccL6wsb2HX4nNU3rzV";
+        const string init_pub_key = "EOS6ZXGf34JNpBeWo6TXrKFGQAJXTUwXTYAdnAN4cajMnLdJh2onU";
 
         std::map<string, string> last_results;
         bool results_ready = false;
     };
 
-    string uos_rates_impl::main_report(std::string body) {
+    string uos_rates_impl::trigger_save_rate_transactions(std::string body) {
         if(!uos_rates_impl::results_ready)
             return R"({"msg":"Nothing to save"})";
 
         ilog("last_results.count() " + std::to_string(last_results.size()));
         for(auto item : last_results){
-            uos_rates_impl::set_property_transaction(item.first, "rate", item.second);
+            uos_rates_impl::set_rate(item.first, item.second);
         }
         for (auto item1 : last_results)
         {
@@ -66,18 +69,14 @@ namespace eosio {
 
     void uos_rates_impl::irreversible_block_catcher(const eosio::chain::block_state_ptr &bsp) {
         auto latency = (fc::time_point::now() - bsp->block->timestamp).count()/1000;
-        ilog("latency " + std::to_string(latency));
+
 
         if (latency > 10000)
             return;
 
-        ilog("irreversible_block_catcher started");
         auto irr_block_id = bsp->block->id();
         auto irr_block_num = bsp->block->num_from_id(irr_block_id);
-        ilog("irr_block_num " + std::to_string(irr_block_num));
-
         auto current_calc_block_num = irr_block_num - (irr_block_num % period);
-        ilog("current_calc_block_num " + std::to_string(current_calc_block_num));
 
         if(last_calc_block >= current_calc_block_num)
             return;
@@ -133,6 +132,9 @@ namespace eosio {
                 auto actions = trs.trx.get<chain::packed_transaction>().get_transaction().actions;
                 for (auto action : actions) {
 
+                    if (action.account.to_string() != contract_acc)
+                        continue;
+
                     chain_apis::read_only::abi_bin_to_json_params bins;
                     bins.code = action.account;
                     bins.action = action.name;
@@ -140,37 +142,34 @@ namespace eosio {
                     auto json = ro_api.abi_bin_to_json(bins);
                     auto object = json.args.get_object();
 
-                    if (action.name.to_string() == "add")
-                    {
-                        ilog("block " + std::to_string(block->block_num()) +
-                             " account " + action.account.to_string() +
-                             " action " + action.name.to_string());
-                        ilog("json " + fc::json::to_string(json.args));
-                        ilog(object["from_acc"].as_string());
-                        ilog(object["to_acc"].as_string());
-                        ilog(object["iweight"].as_string());
+
+
+                    if (action.name.to_string() == "usertouser") {
+
+                        auto from = object["acc_from"].as_string();
+                        auto to = object["acc_to"].as_string();
+                        singularity::transaction_t tran(100000, 1, from, to, time_t(), 100000, 100000);
+                        transactions_t.push_back(tran);
+                        ilog("usertouser " + from + " " + to);
                     }
 
-                    if (action.account.to_string() != "grv.likes")
-                        continue;
+                    if (action.name.to_string() == "makecontent") {
 
-                    if (action.name.to_string() != "add")
-                        continue;
+                        auto from = object["content_id"].as_string();
+                        auto to = object["acc"].as_string();
+                        singularity::transaction_t tran(100000, 1, from, to, time_t(), 100000, 100000);
+                        transactions_t.push_back(tran);
+                        ilog("makecontent " + from + " " + to);
+                    }
 
-                    auto from = object["from_acc"].as_string();
-                    auto to = object["to_acc"].as_string();
-                    auto weight = object["iweight"].as_string();
+                    if (action.name.to_string() == "usertocont") {
 
-                    singularity::transaction_t tran(100000, 1, from, to, time_t(), 100000, 100000);
-                    transactions_t.push_back(tran);
-
-                    ilog("block " + std::to_string(block->block_num()) +
-                         " account " + action.account.to_string() +
-                         " action " + action.name.to_string());
-                    ilog("from " + from +
-                         " to " + to +
-                         " iweight " + weight);
-                    ilog("json " + fc::json::to_string(json.args));
+                        auto from = object["acc"].as_string();
+                        auto to = object["content_id"].as_string();
+                        singularity::transaction_t tran(100000, 1, from, to, time_t(), 100000, 100000);
+                        transactions_t.push_back(tran);
+                        ilog("usertocont " + from + " " + to);
+                    }
                 }
             }
             catch (...){
@@ -181,13 +180,7 @@ namespace eosio {
         return transactions_t;
     }
 
-    void uos_rates_impl::set_property_transaction(std::string account_name,
-                                                     std::string property_name,
-                                                     std::string property_value) {
-        ilog("set_property_transaction " + account_name + " " + property_name + " " + property_value);
-
-        string init_priv_key = "5KQwrPbwdL6PhXujxW37FSSQZ1JiwsST4cqQzDeyXtP79zkvFD3";
-        string init_pub_key = "EOS6df7gX1Q2Qj2y2NAMpQt7rTtxrReeP4MrDmXJJjg8wpctrsPrd";
+    void uos_rates_impl::set_rate(std::string name, std::string value) {
 
         auto creator_priv_key = fc::crypto::private_key(init_priv_key);
         auto creator_pub_key = fc::crypto::public_key(init_pub_key);
@@ -203,17 +196,16 @@ namespace eosio {
         chain::action act;
         chain::abi_serializer eosio_token_serializer;
 
-        auto &accnt = cc.db().get<chain::account_object, chain::by_name>(N(grv.users));
-        eosio_token_serializer.set_abi(accnt.get_abi());
+        auto &accnt = cc.db().get<chain::account_object, chain::by_name>(contract_acc);
+        eosio_token_serializer.set_abi(accnt.get_abi(), fc::microseconds(1000000));
 
         act.name = N(edtparam);
         act.account = N(grv.users);
         act.authorization = vector<chain::permission_level>{{N(eosio), chain::config::active_name}};
         fc::mutable_variant_object data;
-        data.set("acc", account_name);
-        data.set("param_name", property_name);
-        data.set("param_value", property_value);
-        act.data = eosio_token_serializer.variant_to_binary("edtparam", data);
+        data.set("name", name);
+        data.set("value", value);
+        act.data = eosio_token_serializer.variant_to_binary("setrate", data, fc::microseconds(1000000));
 
         //signed_trx.actions.emplace_back(act);
         signed_trx.actions.push_back(act);
@@ -223,28 +215,11 @@ namespace eosio {
         signed_trx.max_net_usage_words = 5000;
         signed_trx.sign(creator_priv_key, cc.get_chain_id());
 
-        ilog("almost did it");
         try {
             app().get_plugin<chain_plugin>().accept_transaction(
                     chain::packed_transaction(move(signed_trx)),
-                    [](const fc::static_variant<fc::exception_ptr, chain::transaction_trace_ptr> &result) {
-                        ilog("started reporting result");
-//                    if (result.contains<fc::exception_ptr>()) {
-//                        auto e_ptr = result.get<fc::exception_ptr>();
-//                        if (e_ptr->code() != chain::tx_duplicate::code_value && e_ptr->code() != chain::expired_tx_exception::code_value)
-//                            elog("accept txn threw  ${m}",("m",result.get<fc::exception_ptr>()->to_detail_string()));
-////                        elog(c, "bad packed_transaction : ${m}", ("m",result.get<fc::exception_ptr>()->what()));
-//                    } else {
-//                        auto trace = result.get<chain::transaction_trace_ptr>();
-//                        if (!trace->except) {
-//                            elog("chain accepted transaction");
-//                            return;
-//                        }
-//
-//                        //elog(c, "bad packed_transaction : ${m}", ("m",trace->except->what()));
-//                    }
-                    });
-            ilog("transaction sent " + property_value);
+                    [](const fc::static_variant<fc::exception_ptr, chain::transaction_trace_ptr> &result) {});
+            ilog("transaction sent " + value);
 
         } catch (...) {
             elog("Error in accept transaction");
@@ -284,9 +259,9 @@ namespace eosio {
 
         app().get_plugin<http_plugin>().
                 add_handler(
-                "/v1/uos_rates",
+                "/v1/uos_rates/save_results",
                 [this](string url,string body,url_response_callback cb)mutable{
-                    auto result=my->main_report(body);
+                    auto result=my->trigger_save_rate_transactions(body);
                     cb(200, result);
                 }
         );
