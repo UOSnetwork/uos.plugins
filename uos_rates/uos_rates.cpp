@@ -16,10 +16,9 @@
 
 namespace eosio {
     using namespace std;
+
     static appbase::abstract_plugin& _uos_rates = app().register_plugin<uos_rates>();
-    void set_property_transaction(std::string account_name,
-                                  std::string property_name,
-                                  std::string property_value);
+
     class uos_rates_impl {
 
         unordered_set<string> str_dictionary;;
@@ -120,6 +119,8 @@ namespace eosio {
         }
         last_calc_block = current_calc_block_num;
         results_ready = true;
+
+        //trigger_save_rate_transactions("null");
     }
 
     std::vector<singularity::transaction_t> uos_rates_impl::parse_transactions_from_block(
@@ -197,7 +198,7 @@ namespace eosio {
         chain::abi_serializer eosio_token_serializer;
 
         auto &accnt = cc.db().get<chain::account_object, chain::by_name>(contract_acc);
-        eosio_token_serializer.set_abi(accnt.get_abi(), fc::microseconds(1000000));
+        eosio_token_serializer.set_abi(accnt.get_abi(), fc::milliseconds(100));
 
         act.name = N(edtparam);
         act.account = N(grv.users);
@@ -205,7 +206,7 @@ namespace eosio {
         fc::mutable_variant_object data;
         data.set("name", name);
         data.set("value", value);
-        act.data = eosio_token_serializer.variant_to_binary("setrate", data, fc::microseconds(1000000));
+        act.data = eosio_token_serializer.variant_to_binary("setrate", data, fc::milliseconds(100));
 
         //signed_trx.actions.emplace_back(act);
         signed_trx.actions.push_back(act);
