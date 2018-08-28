@@ -208,9 +208,9 @@ namespace eosio {
         auto &accnt = cc.db().get<chain::account_object, chain::by_name>(contract_acc);
         eosio_token_serializer.set_abi(accnt.get_abi(), fc::milliseconds(100));
 
-        act.name = N(setrate);
-        act.account = N(user.1);
-        act.authorization = vector<chain::permission_level>{{N(user.1), chain::config::active_name}};
+        act.name = N(setrate);//!!!!!!!!!!!!!!! move constants to settings
+        act.account = N(uos.activity);//!!!!!!!
+        act.authorization = vector<chain::permission_level>{{N(uos.activity), chain::config::active_name}};//!!!!!!!!!!
         fc::mutable_variant_object data;
         data.set("name", name);
         data.set("value", value);
