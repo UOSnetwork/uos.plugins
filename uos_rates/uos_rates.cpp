@@ -161,6 +161,14 @@ namespace eosio {
                         singularity::transaction_t tran(100000, 1, from, to, time_t(), 100000, 100000);
                         transactions_t.push_back(tran);
                         ilog("makecontent " + from + " " + to);
+
+                        auto parent = object["parent_content_id"].as_string();
+                        if(parent != "")
+                        {
+                            singularity::transaction_t tran2(100000, 1, from, parent, time_t(), 100000, 100000);
+                            transactions_t.push_back(tran2);
+                            ilog("parent content " + from + " " + parent);
+                        }
                     }
 
                     if (action.name.to_string() == "usertocont") {
