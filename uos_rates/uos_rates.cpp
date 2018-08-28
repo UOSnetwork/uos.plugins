@@ -30,7 +30,6 @@ namespace eosio {
         std::vector<singularity::transaction_t> parse_transactions_from_block(
                 eosio::chain::signed_block_ptr block);
 
-        string trigger_save_rate_transactions(string);
         void set_rate(string name, string value);
 
         friend class uos_rates;
@@ -43,28 +42,7 @@ namespace eosio {
         const string contract_acc = "uos.activity";
         const string init_priv_key = "5K2FaURJbVHNKcmJfjHYbbkrDXAt2uUMRccL6wsb2HX4nNU3rzV";
         const string init_pub_key = "EOS6ZXGf34JNpBeWo6TXrKFGQAJXTUwXTYAdnAN4cajMnLdJh2onU";
-
-        std::map<string, string> last_results;
-        bool results_ready = false;
     };
-
-    string uos_rates_impl::trigger_save_rate_transactions(std::string body) {
-        if(!uos_rates_impl::results_ready)
-            return R"({"msg":"Nothing to save"})";
-
-        ilog("last_results.count() " + std::to_string(last_results.size()));
-        for(auto item : last_results){
-            uos_rates_impl::set_rate(item.first, item.second);
-        }
-        for (auto item1 : last_results)
-        {
-            ilog("last_results "+ item1.first + " " + item1.second);
-        }
-        results_ready = false;
-        return R"({"msg":"Results saved"})";
-    }
-
-
 
     void uos_rates_impl::irreversible_block_catcher(const eosio::chain::block_state_ptr &bsp) {
         auto latency = (fc::time_point::now() - bsp->block->timestamp).count()/1000;
@@ -107,20 +85,12 @@ namespace eosio {
         auto a_result = a_calc.calculate();
         ilog("a_result.size()" + std::to_string(a_result.size()));
 
-        last_results.clear();
         for (auto item : a_result)
         {
             ilog(item.first + " " + std::to_string(item.second));
-            last_results[item.first] = std::to_string(item.second);
-        }
-        for (auto item1 : last_results)
-        {
-            ilog("last_results "+ item1.first + " " + item1.second);
+            set_rate(item.first, std::to_string(item.second));
         }
         last_calc_block = current_calc_block_num;
-        results_ready = true;
-
-        //trigger_save_rate_transactions("null");
     }
 
     std::vector<singularity::transaction_t> uos_rates_impl::parse_transactions_from_block(
@@ -195,7 +165,7 @@ namespace eosio {
         auto creator_pub_key = fc::crypto::public_key(init_pub_key);
         chain::controller &cc = app().get_plugin<chain_plugin>().chain();
         if(cc.pending_block_state()== nullptr){
-            elog("catch nullptr in activity");
+            ilog("catch nullptr in activity");
         }
         else{
             ilog(fc::string(cc.pending_block_state()->header.timestamp.to_time_point()));
@@ -265,15 +235,6 @@ namespace eosio {
         chain::controller &cc = app().get_plugin<chain_plugin>().chain();
 
         cc.irreversible_block.connect([this](const auto& bsp){my->irreversible_block_catcher(bsp);});
-
-        app().get_plugin<http_plugin>().
-                add_handler(
-                "/v1/uos_rates/save_results",
-                [this](string url,string body,url_response_callback cb)mutable{
-                    auto result=my->trigger_save_rate_transactions(body);
-                    cb(200, result);
-                }
-        );
 
     }
 
