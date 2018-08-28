@@ -40,7 +40,7 @@ namespace eosio {
         uint64_t last_calc_block = 0;
         const uint32_t period = 30*2;
         const uint32_t window = 86400*2*100;
-        const string contract_acc = "user.1";
+        const string contract_acc = "uos.activity";
         const string init_priv_key = "5K2FaURJbVHNKcmJfjHYbbkrDXAt2uUMRccL6wsb2HX4nNU3rzV";
         const string init_pub_key = "EOS6ZXGf34JNpBeWo6TXrKFGQAJXTUwXTYAdnAN4cajMnLdJh2onU";
 
