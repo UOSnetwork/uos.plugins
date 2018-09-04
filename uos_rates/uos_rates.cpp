@@ -49,6 +49,8 @@ namespace eosio {
         const string contract_acc = "uos.activity";
         const string init_priv_key = "5K2FaURJbVHNKcmJfjHYbbkrDXAt2uUMRccL6wsb2HX4nNU3rzV";
         const string init_pub_key = "EOS6ZXGf34JNpBeWo6TXrKFGQAJXTUwXTYAdnAN4cajMnLdJh2onU";
+
+        std::vector<std::map<string, string>> _transaction_history;
     };
 
     void uos_rates_impl::irreversible_block_catcher(const eosio::chain::block_state_ptr &bsp) {
@@ -101,6 +103,13 @@ namespace eosio {
             input_data["value"] = std::to_string(item.second);
             run_transaction(contract_acc, "setrate", input_data, init_pub_key, init_priv_key);
         }
+
+        for(auto hist_item : _transaction_history)
+        {
+            ilog(hist_item["blocknum"] + " " + hist_item["action_name"]);
+            run_transaction(contract_acc, "savetran", hist_item, init_pub_key, init_priv_key);
+        }
+
         last_calc_block = current_calc_block_num;
     }
 
@@ -133,6 +142,14 @@ namespace eosio {
                         singularity::transaction_t tran(100000, 1, from, to, time_t(), 100000, 100000);
                         transactions_t.push_back(tran);
                         ilog("usertouser " + from + " " + to);
+                        map<string, string> i_d;
+                        i_d["blocknum"] = std::to_string(block->block_num());
+                        i_d["transaction_id"] = transaction.id().str();
+                        i_d["timestamp"] = fc::string(block->timestamp.to_time_point());
+                        i_d["action_name"] = action.name.to_string();
+                        i_d["data"] = fc::json::to_string(json.args);
+                        _transaction_history.push_back(i_d);
+
                     }
 
                     if (action.name.to_string() == "makecontent") {
@@ -153,6 +170,15 @@ namespace eosio {
                     }
 
                     if (action.name.to_string() == "usertocont") {
+
+                        map<string, string> input_data;
+                        input_data["blocknum"] = std::to_string(block->block_num());
+                        input_data["transaction_id"] = transaction.id().str();
+                        input_data["timestamp"] = fc::string(block->timestamp.to_time_point());
+                        input_data["action_name"] = action.name.to_string();
+                        input_data["data"] = fc::json::to_string(json.args);
+                        _transaction_history.push_back(input_data);
+
 
                         auto from = object["acc"].as_string();
                         auto to = object["content_id"].as_string();
