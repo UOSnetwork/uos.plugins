@@ -95,7 +95,11 @@ namespace eosio {
         for (auto item : a_result)
         {
             ilog(item.first + " " + std::to_string(item.second));
-            set_rate(item.first, std::to_string(item.second));
+            //set_rate(item.first, std::to_string(item.second));
+            std::map<string, string> input_data;
+            input_data["name"] = item.first;
+            input_data["value"] = std::to_string(item.second);
+            run_transaction(contract_acc, "setrate", input_data, init_pub_key, init_priv_key);
         }
         last_calc_block = current_calc_block_num;
     }
