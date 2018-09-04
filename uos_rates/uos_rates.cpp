@@ -30,6 +30,13 @@ namespace eosio {
         std::vector<singularity::transaction_t> parse_transactions_from_block(
                 eosio::chain::signed_block_ptr block);
 
+        void run_transaction(
+                string account,
+                string action,
+                std::map<string, string> input_data,
+                string pub_key,
+                string priv_key);
+
         void set_rate(string name, string value);
 
         friend class uos_rates;
@@ -159,10 +166,15 @@ namespace eosio {
         return transactions_t;
     }
 
-    void uos_rates_impl::set_rate(std::string name, std::string value) {
-
-        auto creator_priv_key = fc::crypto::private_key(init_priv_key);
-        auto creator_pub_key = fc::crypto::public_key(init_pub_key);
+    void uos_rates_impl::run_transaction(
+            string account,
+            string action,
+            std::map<string, string> input_data,
+            string pub_key,
+            string priv_key)
+    {
+        auto creator_priv_key = fc::crypto::private_key(priv_key);
+        auto creator_pub_key = fc::crypto::public_key(pub_key);
         chain::controller &cc = app().get_plugin<chain_plugin>().chain();
         if(cc.pending_block_state()== nullptr){
             ilog("catch nullptr in activity");
@@ -175,16 +187,17 @@ namespace eosio {
         chain::action act;
         chain::abi_serializer eosio_token_serializer;
 
-        auto &accnt = cc.db().get<chain::account_object, chain::by_name>(contract_acc);
+        auto &accnt = cc.db().get<chain::account_object, chain::by_name>(account);
         eosio_token_serializer.set_abi(accnt.get_abi(), fc::milliseconds(100));
 
-        act.name = N(setrate);//!!!!!!!!!!!!!!! move constants to settings
-        act.account = N(uos.activity);//!!!!!!!
-        act.authorization = vector<chain::permission_level>{{N(uos.activity), chain::config::active_name}};//!!!!!!!!!!
+        act.name = action;//!!!!!!!!!!!!!!! move constants to settings
+        act.account = account;//!!!!!!!
+        act.authorization = vector<chain::permission_level>{{account, chain::config::active_name}};//!!!!!!!!!!
         fc::mutable_variant_object data;
-        data.set("name", name);
-        data.set("value", value);
-        act.data = eosio_token_serializer.variant_to_binary("setrate", data, fc::milliseconds(100));
+        for(auto item : input_data)
+            data.set(item.first, item.second);
+
+        act.data = eosio_token_serializer.variant_to_binary(action, data, fc::milliseconds(100));
 
         //signed_trx.actions.emplace_back(act);
         signed_trx.actions.push_back(act);
@@ -198,12 +211,11 @@ namespace eosio {
             app().get_plugin<chain_plugin>().accept_transaction(
                     chain::packed_transaction(move(signed_trx)),
                     [](const fc::static_variant<fc::exception_ptr, chain::transaction_trace_ptr> &result) {});
-            ilog("transaction sent " + value);
+            ilog("transaction sent " + action);
 
         } catch (...) {
             elog("Error in accept transaction");
         }
-
     }
 
     uos_rates::uos_rates():my(new uos_rates_impl()){}
