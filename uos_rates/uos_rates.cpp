@@ -27,8 +27,8 @@ namespace eosio {
 
         void irreversible_block_catcher(const chain::block_state_ptr& bsp);
 
-        std::vector<singularity::transaction_t> parse_transactions_from_block(
-                eosio::chain::signed_block_ptr block);
+        std::vector<std::shared_ptr<singularity::relation_t>> parse_transactions_from_block(
+                eosio::chain::signed_block_ptr block, uint32_t current_calc_block);
 
         void run_transaction(
                 string account,
@@ -44,7 +44,7 @@ namespace eosio {
     private:
 
         uint64_t last_calc_block = 0;
-        const uint32_t period = 30*2;
+        const uint32_t period = 300*2;
         const uint32_t window = 86400*2*100;
         const string contract_acc = "uos.activity";
         const string init_priv_key = "5K2FaURJbVHNKcmJfjHYbbkrDXAt2uUMRccL6wsb2HX4nNU3rzV";
@@ -78,30 +78,37 @@ namespace eosio {
 
         chain::controller &cc = app().get_plugin<chain_plugin>().chain();
 
-        //activity calculator from singularity
+        //activity calculator for social interactions
         singularity::parameters_t params;
-        singularity::activity_index_calculator a_calc(params);
+        auto calculator =
+                singularity::rank_calculator_factory::create_calculator_for_social_network(params);
+
+        _transaction_history.clear();
 
         for(int i = start_block; i <= end_block; i++)
         {
             auto block = cc.fetch_block_by_number(i);
 
-            auto transactions_t = parse_transactions_from_block(block);
+            auto interactions = parse_transactions_from_block(block, current_calc_block_num);
 
-            a_calc.add_block(transactions_t);
+            calculator->add_block(interactions);
         }
 
-        auto a_result = a_calc.calculate();
+        auto a_result = calculator->calculate();
         ilog("a_result.size()" + std::to_string(a_result.size()));
 
-        for (auto item : a_result)
+        for (auto group : a_result)
         {
-            ilog(item.first + " " + std::to_string(item.second));
-            //set_rate(item.first, std::to_string(item.second));
-            std::map<string, string> input_data;
-            input_data["name"] = item.first;
-            input_data["value"] = std::to_string(item.second);
-            run_transaction(contract_acc, "setrate", input_data, init_pub_key, init_priv_key);
+            auto group_name = group.first;
+            auto item_map = group.second;
+            for (auto item : *item_map) {
+                ilog(item.first + " " + item.second.str(5));
+                //set_rate(item.first, std::to_string(item.second));
+                std::map<string, string> input_data;
+                input_data["name"] = item.first;
+                input_data["value"] = item.second.str(5);
+                run_transaction(contract_acc, "setrate", input_data, init_pub_key, init_priv_key);
+            }
         }
 
         for(auto hist_item : _transaction_history)
@@ -113,14 +120,17 @@ namespace eosio {
         last_calc_block = current_calc_block_num;
     }
 
-    std::vector<singularity::transaction_t> uos_rates_impl::parse_transactions_from_block(
-            eosio::chain::signed_block_ptr block){
-        std::vector<singularity::transaction_t> transactions_t;
+    std::vector<std::shared_ptr<singularity::relation_t>> uos_rates_impl::parse_transactions_from_block(
+            eosio::chain::signed_block_ptr block, uint32_t current_calc_block){
+
+        std::vector<std::shared_ptr<singularity::relation_t>> interactions;
         auto ro_api = app().get_plugin<chain_plugin>().get_read_only_api();
 
         for (auto trs : block->transactions) {
+            uint32_t block_height = current_calc_block - block->block_num();
             try {
-                auto actions = trs.trx.get<chain::packed_transaction>().get_transaction().actions;
+                auto transaction = trs.trx.get<chain::packed_transaction>().get_transaction();
+                auto actions = transaction.actions;
                 for (auto action : actions) {
 
                     if (action.account.to_string() != contract_acc)
@@ -137,11 +147,6 @@ namespace eosio {
 
                     if (action.name.to_string() == "usertouser") {
 
-                        auto from = object["acc_from"].as_string();
-                        auto to = object["acc_to"].as_string();
-                        singularity::transaction_t tran(100000, 1, from, to, time_t(), 100000, 100000);
-                        transactions_t.push_back(tran);
-                        ilog("usertouser " + from + " " + to);
                         map<string, string> i_d;
                         i_d["blocknum"] = std::to_string(block->block_num());
                         i_d["transaction_id"] = transaction.id().str();
@@ -150,23 +155,36 @@ namespace eosio {
                         i_d["data"] = fc::json::to_string(json.args);
                         _transaction_history.push_back(i_d);
 
+//                        auto from = object["acc_from"].as_string();
+//                        auto to = object["acc_to"].as_string();
+//                        singularity::transaction_t tran(100000, 1, from, to, time_t(), 100000, 100000);
+//                        transactions_t.push_back(tran);
+//                        ilog("usertouser " + from + " " + to);
                     }
 
                     if (action.name.to_string() == "makecontent") {
 
-                        auto from = object["content_id"].as_string();
-                        auto to = object["acc"].as_string();
-                        singularity::transaction_t tran(100000, 1, from, to, time_t(), 100000, 100000);
-                        transactions_t.push_back(tran);
+//                        map<string, string> i_d;
+//                        i_d["blocknum"] = std::to_string(block->block_num());
+//                        i_d["transaction_id"] = transaction.id().str();
+//                        i_d["timestamp"] = fc::string(block->timestamp.to_time_point());
+//                        i_d["action_name"] = action.name.to_string();
+//                        i_d["data"] = fc::json::to_string(json.args);
+//                        _transaction_history.push_back(i_d);
+
+                        auto from = object["acc"].as_string();
+                        auto to = object["content_id"].as_string();
+                        ownership_t ownership(from, to, block_height);
+                        interactions.push_back(std::make_shared<ownership_t>(ownership));
                         ilog("makecontent " + from + " " + to);
 
-                        auto parent = object["parent_content_id"].as_string();
-                        if(parent != "")
-                        {
-                            singularity::transaction_t tran2(100000, 1, from, parent, time_t(), 100000, 100000);
-                            transactions_t.push_back(tran2);
-                            ilog("parent content " + from + " " + parent);
-                        }
+//                        auto parent = object["parent_content_id"].as_string();
+//                        if(parent != "")
+//                        {
+//                            singularity::transaction_t tran2(100000, 1, from, parent, time_t(), 100000, 100000);
+//                            transactions_t.push_back(tran2);
+//                            ilog("parent content " + from + " " + parent);
+//                        }
                     }
 
                     if (action.name.to_string() == "usertocont") {
@@ -182,9 +200,12 @@ namespace eosio {
 
                         auto from = object["acc"].as_string();
                         auto to = object["content_id"].as_string();
-                        singularity::transaction_t tran(100000, 1, from, to, time_t(), 100000, 100000);
-                        transactions_t.push_back(tran);
-                        ilog("usertocont " + from + " " + to);
+                        auto interaction_type_id = object["interaction_type_id"].as_string();
+                        if(interaction_type_id == "2") {
+                            upvote_t upvote(from, to, block_height);
+                            interactions.push_back(std::make_shared<upvote_t>(upvote));
+                            ilog("usertocont " + from + " " + to);
+                        }
                     }
                 }
             }
@@ -193,7 +214,7 @@ namespace eosio {
             }
         }
 
-        return transactions_t;
+        return interactions;
     }
 
     void uos_rates_impl::run_transaction(
