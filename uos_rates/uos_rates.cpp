@@ -175,6 +175,11 @@ namespace eosio {
                             interactions.push_back(std::make_shared<upvote_t>(upvote));
                             ilog("usertocont " + from + " " + to);
                         }
+                        if(interaction_type_id == "4") {
+                            downvote_t downvote(from, to, block_height);
+                            interactions.push_back(std::make_shared<downvote_t>(downvote));
+                            ilog("usertocont " + from + " " + to);
+                        }
                     }
                 }
             }

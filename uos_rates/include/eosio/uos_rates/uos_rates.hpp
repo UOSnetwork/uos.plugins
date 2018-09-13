@@ -51,6 +51,32 @@ namespace eosio {
         };
     };
 
+    class downvote_t: public  singularity::relation_t
+    {
+    public:
+        downvote_t (std::string source, std::string target, uint64_t height):
+                relation_t(source, target, height)
+        {};
+        virtual int64_t get_weight() {
+            return -1;
+        };
+        virtual int64_t get_reverse_weight() {
+            return 0;
+        };
+        virtual std::string get_name() {
+            return "DOWNVOTE";
+        };
+        virtual bool is_decayable() {
+            return true;
+        };
+        virtual singularity::node_type get_source_type() {
+            return singularity::node_type::ACCOUNT;
+        };
+        virtual singularity::node_type get_target_type(){
+            return singularity::node_type::CONTENT;
+        };
+    };
+
     class ownership_t: public singularity::relation_t
     {
     public:
