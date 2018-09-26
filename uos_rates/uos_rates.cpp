@@ -56,7 +56,7 @@ namespace eosio {
         auto latency = (fc::time_point::now() - bsp->block->timestamp).count()/1000;
 
 
-        if (latency > 10000)
+        if (latency > 100000)
             return;
 
         auto irr_block_id = bsp->block->id();
@@ -93,13 +93,15 @@ namespace eosio {
         }
 
         auto a_result = calculator->calculate();
+        singularity::gravity_index_calculator grv_cals(0.1, 0.9, 100000000000);
         ilog("a_result.size()" + std::to_string(a_result.size()));
 
         for (auto group : a_result)
         {
             auto group_name = group.first;
             auto item_map = group.second;
-            for (auto item : *item_map) {
+            auto norm_map = grv_cals.scale_activity_index(*item_map);
+            for (auto item : norm_map) {
                 ilog(item.first + " " + item.second.str(5));
                 //set_rate(item.first, std::to_string(item.second));
                 std::map<string, string> input_data;
