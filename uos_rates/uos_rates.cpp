@@ -94,7 +94,7 @@ namespace eosio {
         logger_i.setApart(false);
 
 
-        logger_i.setFilename(std::string("input")+ fc::variant(fc::time_point::now()).as_string()+".csv");
+        logger_i.setFilename(std::string("input_")+ fc::variant(fc::time_point::now()).as_string()+".csv");
 
         for(int i = start_block; i <= end_block; i++)
         {
@@ -122,25 +122,14 @@ namespace eosio {
             auto item_map = group.second;
             auto norm_map = grv_cals.scale_activity_index(*item_map);
             std::vector<std::string> vec;
-            int i{0};
             for (auto item : norm_map) {
                 ilog(item.first + " " + item.second.str(5));
 
                 //set_rate(item.first, std::to_string(item.second));
                 std::map<string, string> input_data;
-//                input_data["name"] = item.first;
-                string symbol = "\n";
                 input_data["name"] = item.first;
 
-                size_t start_pos =  input_data["name"].find(symbol);
-                if(start_pos == std::string::npos)
-                {
-
-                }
-                else
-                {
-                    input_data["name"].replace( input_data["name"].find(symbol), symbol.size(), "'\\n'");
-                }
+                fix_symbol(input_data["name"]);
 
                 input_data["value"] = item.second.str(5);
 
@@ -153,9 +142,8 @@ namespace eosio {
                 logger.addDatainRow(vec.begin(), vec.end());
                 run_transaction(contract_acc, "setrate", input_data, init_pub_key, init_priv_key);
                 vec.clear();
-                i++;
             }
-            logger.setFilename("result"+std::to_string(i)+".csv");
+            logger.setFilename("result_"+fc::variant(fc::time_point::now()).as_string()+"_"+ to_string_from_enum(group_name) +".csv");
         }
 
          last_calc_block = current_calc_block_num;
@@ -166,9 +154,6 @@ namespace eosio {
 
         std::vector<std::shared_ptr<singularity::relation_t>> interactions;
         auto ro_api = app().get_plugin<chain_plugin>().get_read_only_api();
-
-
-
 
         for (auto trs : block->transactions) {
             uint32_t block_height = current_calc_block - block->block_num();
@@ -205,12 +190,14 @@ namespace eosio {
                     }
 
 
-
-
-                    if (action.name.to_string() == "makecontent") {
+                    if (action.name.to_string() == "makecontent" ) {
 
                         auto from = object["acc"].as_string();
                         auto to = object["content_id"].as_string();
+                        auto content_type_id = object["content_type_id"].as_string();
+                        if(content_type_id == "5")
+                            continue;
+
                         ownership_t ownership(from, to, block_height);
                         interactions.push_back(std::make_shared<ownership_t>(ownership));
                         ilog("makecontent " + from + " " + to);
@@ -267,11 +254,20 @@ namespace eosio {
                     }
                     if (action.name.to_string() == "makecontorg") {
 
-                        auto from = object["acc"].as_string();
+                        auto from = object["organization_id"].as_string();
                         auto to = object["content_id"].as_string();
-//                        ownership_t ownership(from, to, block_height);
-//                        interactions.push_back(std::make_shared<ownership_t>(ownership));
+                        ownershiporg_t ownershiporg(from, to, block_height);
+                        interactions.push_back(std::make_shared<ownershiporg_t>(ownershiporg));
                         ilog("makecontorg " + from + " " + to);
+
+                        std::string s1 = ownershiporg.get_target();
+                        fix_symbol(s1);
+                        std::vector<std::string> vec{block->timestamp.to_time_point(),std::to_string(block->block_num()),ownershiporg.get_source(),s1,
+                                                     ownershiporg.get_name(),std::to_string(ownershiporg.get_height()),std::to_string(ownershiporg.get_weight()),
+                                                     std::to_string(ownershiporg.get_reverse_weight()),to_string_from_enum(ownershiporg.get_source_type()),to_string_from_enum(ownershiporg.get_target_type())};
+                        logger_i.addDatainRow(vec.begin(),vec.end());
+                        vec.clear();
+
                     }
                 }
             }

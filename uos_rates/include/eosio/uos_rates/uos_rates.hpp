@@ -102,4 +102,30 @@ namespace eosio {
             return singularity::node_type::CONTENT;
         };
     };
+
+    class ownershiporg_t: public singularity::relation_t
+    {
+    public:
+        ownershiporg_t (std::string source, std::string target, uint64_t height):
+                singularity::relation_t(source, target, height)
+        {};
+        virtual int64_t get_weight() {
+            return 10;
+        };
+        virtual int64_t get_reverse_weight() {
+            return 10;
+        };
+        virtual std::string get_name() {
+            return "ORGOWNERSHIP";
+        };
+        virtual bool is_decayable() {
+            return false;
+        };
+        virtual singularity::node_type get_source_type() {
+            return singularity::node_type::ORGANIZATION;
+        };
+        virtual singularity::node_type get_target_type(){
+            return singularity::node_type::CONTENT;
+        };
+    };
 }
