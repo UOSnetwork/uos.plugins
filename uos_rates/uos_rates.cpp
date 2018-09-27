@@ -4,6 +4,7 @@
 #include <eosio/http_plugin/http_plugin.hpp>
 #include <../../../libraries/singularity/include/singularity.hpp>
 
+
 #include <fc/io/json.hpp>
 
 #include <unordered_set>
@@ -12,6 +13,8 @@
 #include <vector>
 #include <sstream>
 #include <iterator>
+#include <eosio/uos_rates/cvs.h>
+//#include <eosio/producer_plugin/producer_plugin.hpp>
 
 
 namespace eosio {
@@ -41,6 +44,8 @@ namespace eosio {
 
         friend class uos_rates;
 
+        CSVWriter logger{"result.csv"},logger_i{"input.csv"},error_log{"error.txt"};
+
     private:
 
         uint64_t last_calc_block = 0;
@@ -54,6 +59,8 @@ namespace eosio {
 
     void uos_rates_impl::irreversible_block_catcher(const eosio::chain::block_state_ptr &bsp) {
         auto latency = (fc::time_point::now() - bsp->block->timestamp).count()/1000;
+        ilog(("latency " + std::to_string(latency)).c_str());
+
 
 
         if (latency > 100000)
@@ -63,6 +70,7 @@ namespace eosio {
         auto irr_block_num = bsp->block->num_from_id(irr_block_id);
         auto current_calc_block_num = irr_block_num - (irr_block_num % period);
 
+        ilog((std::string("last_cal_block ") + std::to_string(last_calc_block) + " Current_cals_blocks "+std::to_string(current_calc_block_num)).c_str());
         if(last_calc_block >= current_calc_block_num)
             return;
 
@@ -82,6 +90,11 @@ namespace eosio {
         auto calculator =
                 singularity::rank_calculator_factory::create_calculator_for_social_network(params);
 
+        logger_i.is_write = true;
+        logger_i.setApart(false);
+
+
+        logger_i.setFilename(std::string("input")+ fc::variant(fc::time_point::now()).as_string()+".csv");
 
         for(int i = start_block; i <= end_block; i++)
         {
@@ -92,23 +105,57 @@ namespace eosio {
             calculator->add_block(interactions);
         }
 
+
         auto a_result = calculator->calculate();
+
         singularity::gravity_index_calculator grv_cals(0.1, 0.9, 100000000000);
+
         ilog("a_result.size()" + std::to_string(a_result.size()));
+
+         logger.is_write = true;
+         logger.setApart(false);
+
 
         for (auto group : a_result)
         {
             auto group_name = group.first;
             auto item_map = group.second;
             auto norm_map = grv_cals.scale_activity_index(*item_map);
+            std::vector<std::string> vec;
+            int i{0};
             for (auto item : norm_map) {
                 ilog(item.first + " " + item.second.str(5));
+
                 //set_rate(item.first, std::to_string(item.second));
                 std::map<string, string> input_data;
+//                input_data["name"] = item.first;
+                string symbol = "\n";
                 input_data["name"] = item.first;
+
+                size_t start_pos =  input_data["name"].find(symbol);
+                if(start_pos == std::string::npos)
+                {
+
+                }
+                else
+                {
+                    input_data["name"].replace( input_data["name"].find(symbol), symbol.size(), "'\\n'");
+                }
+
                 input_data["value"] = item.second.str(5);
+
+                vec.reserve(input_data.size());
+                std::for_each(input_data.begin(), input_data.end(),  [&](std::pair<const std::string, std::string>  & element){
+                    vec.push_back(element.second);
+                });
+                vec.push_back("setrate");
+                vec.push_back(fc::time_point::now());
+                logger.addDatainRow(vec.begin(), vec.end());
                 run_transaction(contract_acc, "setrate", input_data, init_pub_key, init_priv_key);
+                vec.clear();
+                i++;
             }
+            logger.setFilename("result"+std::to_string(i)+".csv");
         }
 
          last_calc_block = current_calc_block_num;
@@ -120,6 +167,9 @@ namespace eosio {
         std::vector<std::shared_ptr<singularity::relation_t>> interactions;
         auto ro_api = app().get_plugin<chain_plugin>().get_read_only_api();
 
+
+
+
         for (auto trs : block->transactions) {
             uint32_t block_height = current_calc_block - block->block_num();
             try {
@@ -129,6 +179,11 @@ namespace eosio {
 
                     if (action.account.to_string() != contract_acc)
                         continue;
+                    if(action.name.to_string()!="usertouser" &&
+                       action.name.to_string()!="makecontent" &&
+                       action.name.to_string()!= "usertocont" &&
+                       action.name.to_string()!= "makecontorg")
+                        continue;
 
                     chain_apis::read_only::abi_bin_to_json_params bins;
                     bins.code = action.account;
@@ -137,7 +192,7 @@ namespace eosio {
                     auto json = ro_api.abi_bin_to_json(bins);
                     auto object = json.args.get_object();
 
-
+                        std::string symbol="\n";
 
                     if (action.name.to_string() == "usertouser") {
 
@@ -149,6 +204,9 @@ namespace eosio {
 //                        ilog("usertouser " + from + " " + to);
                     }
 
+
+
+
                     if (action.name.to_string() == "makecontent") {
 
                         auto from = object["acc"].as_string();
@@ -156,6 +214,15 @@ namespace eosio {
                         ownership_t ownership(from, to, block_height);
                         interactions.push_back(std::make_shared<ownership_t>(ownership));
                         ilog("makecontent " + from + " " + to);
+
+                        std::string s1 = ownership.get_target();
+                        fix_symbol(s1);
+                        std::vector<std::string> vec{block->timestamp.to_time_point(),std::to_string(block->block_num()),ownership.get_source(),s1,
+                                                     ownership.get_name(),std::to_string(ownership.get_height()),std::to_string(ownership.get_weight()),
+                                                     std::to_string(ownership.get_reverse_weight()),to_string_from_enum(ownership.get_source_type()),to_string_from_enum(ownership.get_target_type())};
+                        logger_i.addDatainRow(vec.begin(),vec.end());
+                        vec.clear();
+
 
 //                        auto parent = object["parent_content_id"].as_string();
 //                        if(parent != "")
@@ -176,17 +243,45 @@ namespace eosio {
                             upvote_t upvote(from, to, block_height);
                             interactions.push_back(std::make_shared<upvote_t>(upvote));
                             ilog("usertocont " + from + " " + to);
+
+                            std::string s1 = upvote.get_target();
+                            fix_symbol(s1);
+                            std::vector<std::string> vec{block->timestamp.to_time_point(),std::to_string(block->block_num()),upvote.get_source(),s1, upvote.get_name(),std::to_string(upvote.get_height()),std::to_string(upvote.get_weight()),
+                                                         std::to_string(upvote.get_reverse_weight()),to_string_from_enum(upvote.get_source_type()),to_string_from_enum(upvote.get_target_type())};
+                            logger_i.addDatainRow(vec.begin(),vec.end());
+                            vec.clear();
                         }
                         if(interaction_type_id == "4") {
                             downvote_t downvote(from, to, block_height);
                             interactions.push_back(std::make_shared<downvote_t>(downvote));
                             ilog("usertocont " + from + " " + to);
+
+                            std::string s1 = downvote.get_target();
+                            fix_symbol(s1);
+                            std::vector<std::string> vec{block->timestamp.to_time_point(),std::to_string(block->block_num()),downvote.get_source(),s1,
+                                                         downvote.get_name(),std::to_string(downvote.get_height()),std::to_string(downvote.get_weight()),
+                                                         std::to_string(downvote.get_reverse_weight()),to_string_from_enum(downvote.get_source_type()),to_string_from_enum(downvote.get_target_type())};
+                            logger_i.addDatainRow(vec.begin(),vec.end());
+                            vec.clear();
                         }
+                    }
+                    if (action.name.to_string() == "makecontorg") {
+
+                        auto from = object["acc"].as_string();
+                        auto to = object["content_id"].as_string();
+//                        ownership_t ownership(from, to, block_height);
+//                        interactions.push_back(std::make_shared<ownership_t>(ownership));
+                        ilog("makecontorg " + from + " " + to);
                     }
                 }
             }
             catch (...){
-                ilog("exception");
+                ilog("exception" + std::to_string(block->block_num()));
+                error_log.is_write = true;
+                error_log.setApart(false);
+                std::vector<std::string> err { std::to_string(block->block_num())};
+                error_log.addDatainRow(err.begin(),err.end());
+                err.clear();
             }
         }
 
