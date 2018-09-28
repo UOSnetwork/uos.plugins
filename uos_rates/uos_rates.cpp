@@ -256,8 +256,8 @@ namespace eosio {
 
                         auto from = object["organization_id"].as_string();
                         auto to = object["content_id"].as_string();
-                        ownershiporg_t ownershiporg(from, to, block_height);
-                        interactions.push_back(std::make_shared<ownershiporg_t>(ownershiporg));
+                        ownership_t ownershiporg(from, to, block_height);
+                        interactions.push_back(std::make_shared<ownership_t>(ownershiporg));
                         ilog("makecontorg " + from + " " + to);
 
                         std::string s1 = ownershiporg.get_target();
