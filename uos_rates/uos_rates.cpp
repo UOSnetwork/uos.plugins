@@ -6,13 +6,7 @@
 
 
 #include <fc/io/json.hpp>
-
-#include <unordered_set>
-#include <iostream>
-#include <string>
-#include <vector>
-#include <sstream>
-#include <iterator>
+#include <fc/crypto/sha256.hpp>
 #include <eosio/uos_rates/cvs.h>
 //#include <eosio/producer_plugin/producer_plugin.hpp>
 
@@ -36,15 +30,16 @@ namespace eosio {
         void run_transaction(
                 string account,
                 string action,
-                std::map<string, string> input_data,
+                fc::mutable_variant_object data,
                 string pub_key,
-                string priv_key);
+                string priv_key,
+                string acc_from = "");
 
         void set_rate(string name, string value);
 
         friend class uos_rates;
 
-        CSVWriter logger{"result.csv"},logger_i{"input.csv"},error_log{"error.txt"};
+        CSVWriter logger{"result.csv"},logger_i{"input.csv"}, error_log{"error.txt"};
 
     private:
 
@@ -54,6 +49,10 @@ namespace eosio {
         const string contract_acc = "uos.activity";
         const string init_priv_key = "5K2FaURJbVHNKcmJfjHYbbkrDXAt2uUMRccL6wsb2HX4nNU3rzV";
         const string init_pub_key = "EOS6ZXGf34JNpBeWo6TXrKFGQAJXTUwXTYAdnAN4cajMnLdJh2onU";
+
+        const string contract_acc_calc = "calctest1111";
+        const string init_priv_key_calc = "5KGH33Z2zrBhWUmU3DmH9n1Jx2GL6H2Vwzk9AZLUPMJrMfWKgKr";
+        const string init_pub_key_calc = "EOS58BF677xSvHd2Q4JiE4Xj2vEc3tzjbJya1onCxa7vKvZeK3rwt";
 
     };
 
@@ -102,6 +101,7 @@ namespace eosio {
 
             auto interactions = parse_transactions_from_block(block, current_calc_block_num);
 
+
             calculator->add_block(interactions);
         }
 
@@ -115,7 +115,7 @@ namespace eosio {
          logger.is_write = true;
          logger.setApart(false);
 
-
+        std::string str_result = "";
         for (auto group : a_result)
         {
             auto group_name = group.first;
@@ -133,6 +133,12 @@ namespace eosio {
 
                 input_data["value"] = item.second.str(5);
 
+
+                str_result += input_data["name"] + ";" + input_data["value"] + ";";
+                auto result_hash = fc::sha256::hash(str_result);
+
+//               ilog("result hash " + result_hash.str());
+
                 vec.reserve(input_data.size());
                 std::for_each(input_data.begin(), input_data.end(),  [&](std::pair<const std::string, std::string>  & element){
                     vec.push_back(element.second);
@@ -140,10 +146,31 @@ namespace eosio {
                 vec.push_back("setrate");
                 vec.push_back(fc::time_point::now());
                 logger.addDatainRow(vec.begin(), vec.end());
-                run_transaction(contract_acc, "setrate", input_data, init_pub_key, init_priv_key);
+
+                 fc::mutable_variant_object data;
+                 for(auto item : input_data)
+                 data.set(item.first, item.second);
+               run_transaction(contract_acc, "setrate", data, init_pub_key, init_priv_key);
                 vec.clear();
             }
-            logger.setFilename("result_"+fc::variant(fc::time_point::now()).as_string()+"_"+ to_string_from_enum(group_name) +".csv");
+             logger.setFilename(std::string("result_"+fc::variant(fc::time_point::now()).as_string()+"_"+ to_string_from_enum(group_name) +".csv"));
+        }
+        try{
+            auto result_hash = fc::sha256::hash(str_result);
+            fc::mutable_variant_object data;
+            data.set("acc", "calc1");//config
+            data.set("hash", result_hash.str());
+            data.set("block_num",current_calc_block_num);
+            data.set("memo","v1");// version lib
+            string acc{"acc"};
+            run_transaction(contract_acc_calc, "reporthash", data, init_pub_key_calc, init_priv_key_calc,acc);
+        }
+        catch (const std::exception& e)
+        {
+            string c_fail="\033[1;31;40m";
+            string c_clear ="\033[1;0m";
+            ilog(e.what());
+            ilog(c_fail + "exception run transaction  calculate: block number " + std::to_string(current_calc_block_num) +c_clear);
         }
 
          last_calc_block = current_calc_block_num;
@@ -176,8 +203,6 @@ namespace eosio {
                     bins.binargs = action.data;
                     auto json = ro_api.abi_bin_to_json(bins);
                     auto object = json.args.get_object();
-
-                        std::string symbol="\n";
 
                     if (action.name.to_string() == "usertouser") {
 
@@ -287,9 +312,10 @@ namespace eosio {
     void uos_rates_impl::run_transaction(
             string account,
             string action,
-            std::map<string, string> input_data,
+            fc::mutable_variant_object data,
             string pub_key,
-            string priv_key)
+            string priv_key,
+            string acc_from)
     {
         auto creator_priv_key = fc::crypto::private_key(priv_key);
         auto creator_pub_key = fc::crypto::public_key(pub_key);
@@ -310,10 +336,12 @@ namespace eosio {
 
         act.name = action;//!!!!!!!!!!!!!!! move constants to settings
         act.account = account;//!!!!!!!
-        act.authorization = vector<chain::permission_level>{{account, chain::config::active_name}};//!!!!!!!!!!
-        fc::mutable_variant_object data;
-        for(auto item : input_data)
-            data.set(item.first, item.second);
+        if(acc_from.empty()) {
+            act.authorization = vector<chain::permission_level>{{account, chain::config::active_name}};//!!!!!!!!!!
+        } else
+        {
+            act.authorization = vector<chain::permission_level>{{data.find(acc_from)->value().get_string().c_str(), chain::config::active_name}};
+        }
 
         act.data = eosio_token_serializer.variant_to_binary(action, data, fc::milliseconds(100));
 

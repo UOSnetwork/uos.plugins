@@ -20,6 +20,7 @@ class CSVWriter
     std::string delimeter;
     int linesCount;
     bool apart;
+    const std::string path{"/home/calc_log/"};
 
 public:
     CSVWriter(std::string filename, std::string delm = ";", int lc  = 1) :
@@ -39,7 +40,11 @@ public:
      */
     void inline  setApart(bool state) {apart = state;}
 
-    void inline setFilename(std::string filename){this->fileName = filename;}
+    void inline setFilename(std::string filename){
+        if ( !boost::filesystem::exists( path ) )
+            boost::filesystem::create_directories(path);
+        this->fileName = path+filename;
+    }
 
 };
 
@@ -52,7 +57,13 @@ void CSVWriter::addDatainRow(T first, T last)
 
     std::fstream file;
     if(apart == false)
-        file.open(fileName, std::ios::out | (linesCount ? std::ios::app : std::ios::trunc));
+        try {
+            file.open(fileName, std::ios::out | (linesCount ? std::ios::app : std::ios::trunc));
+        }
+        catch (...)
+        {
+            std::cout<<"could open file";
+        }
     else
     {
         file.open(*first, std::ios::out | (linesCount ? std::ios::app : std::ios::trunc));
@@ -93,5 +104,17 @@ void fix_symbol(std::string & str)
         str.replace(str.find(symbol), symbol.size(), "'\\n'");
     }
 }
+
+inline uint64_t convert(std::string const& value) {
+    uint64_t result = 0;
+    char const* p = value.c_str();
+    char const* q = p + value.size();
+    while (p < q) {
+        result *= 10;
+        result += *(p++) - '0';
+    }
+    return result;
+}
+
 
 #endif //EOSIO_CVS_H
