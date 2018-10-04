@@ -8,7 +8,8 @@
 #include <fc/io/json.hpp>
 #include <fc/crypto/sha256.hpp>
 #include <eosio/uos_rates/cvs.h>
-//#include <eosio/producer_plugin/producer_plugin.hpp>
+
+#include <boost/program_options.hpp>
 
 
 namespace eosio {
@@ -18,11 +19,19 @@ namespace eosio {
 
     class uos_rates_impl {
 
-        unordered_set<string> str_dictionary;;
-
     public:
 
         void irreversible_block_catcher(const chain::block_state_ptr& bsp);
+
+        void calculate_rates(uint32_t current_calc_block_num);
+
+        void calculate_result_hash();
+
+        void report_hash(uint32_t current_calc_block_num);
+
+        string get_consensus_leader();
+
+        void set_rates();
 
         std::vector<std::shared_ptr<singularity::relation_t>> parse_transactions_from_block(
                 eosio::chain::signed_block_ptr block, uint32_t current_calc_block);
@@ -35,7 +44,7 @@ namespace eosio {
                 string priv_key,
                 string acc_from = "");
 
-        void set_rate(string name, string value);
+        boost::program_options::variables_map _options;
 
         friend class uos_rates;
 
@@ -43,36 +52,71 @@ namespace eosio {
 
     private:
 
+        int32_t period = 300*2;
+        int32_t window = 86400*2*100;
+        string contract_activity = "uos.activity";
+        string contract_calculators = "calctest1111";
+        string contract_rates = "uos.activity";
+        std::set<chain::account_name> calculators;
+        string calculator_public_key = "EOS58BF677xSvHd2Q4JiE4Xj2vEc3tzjbJya1onCxa7vKvZeK3rwt";
+        string calculator_private_key = "5KGH33Z2zrBhWUmU3DmH9n1Jx2GL6H2Vwzk9AZLUPMJrMfWKgKr";
+        string rates_public_key = "EOS6ZXGf34JNpBeWo6TXrKFGQAJXTUwXTYAdnAN4cajMnLdJh2onU";
+        string rates_private_key = "5K2FaURJbVHNKcmJfjHYbbkrDXAt2uUMRccL6wsb2HX4nNU3rzV";
+
+
         uint64_t last_calc_block = 0;
-        const uint32_t period = 300*2;
-        const uint32_t window = 86400*2*100;
-        const string contract_acc = "uos.activity";
-        const string init_priv_key = "5K2FaURJbVHNKcmJfjHYbbkrDXAt2uUMRccL6wsb2HX4nNU3rzV";
-        const string init_pub_key = "EOS6ZXGf34JNpBeWo6TXrKFGQAJXTUwXTYAdnAN4cajMnLdJh2onU";
+        std::map<string, string> last_result;
+        fc::sha256 last_result_hash;
 
-        const string contract_acc_calc = "calctest1111";
-        const string init_priv_key_calc = "5KGH33Z2zrBhWUmU3DmH9n1Jx2GL6H2Vwzk9AZLUPMJrMfWKgKr";
-        const string init_pub_key_calc = "EOS58BF677xSvHd2Q4JiE4Xj2vEc3tzjbJya1onCxa7vKvZeK3rwt";
-
+        uint64_t last_setrate_block = 0;
     };
 
     void uos_rates_impl::irreversible_block_catcher(const eosio::chain::block_state_ptr &bsp) {
+        //check the latency
         auto latency = (fc::time_point::now() - bsp->block->timestamp).count()/1000;
-        ilog(("latency " + std::to_string(latency)).c_str());
-
-
-
         if (latency > 100000)
             return;
 
+        //determine current calculating block number
         auto irr_block_id = bsp->block->id();
         auto irr_block_num = bsp->block->num_from_id(irr_block_id);
         auto current_calc_block_num = irr_block_num - (irr_block_num % period);
+        ilog((std::string("last_calc_block ") + std::to_string(last_calc_block) + " current_calc_block "+std::to_string(current_calc_block_num)).c_str());
 
-        ilog((std::string("last_cal_block ") + std::to_string(last_calc_block) + " Current_cals_blocks "+std::to_string(current_calc_block_num)).c_str());
-        if(last_calc_block >= current_calc_block_num)
+
+        if(last_calc_block < current_calc_block_num) {
+            //perform the calculations
+            calculate_rates(current_calc_block_num);
+            //reprort the result hash
+            calculate_result_hash();
+            report_hash(current_calc_block_num);
+
+            last_calc_block = current_calc_block_num;
             return;
+        }
 
+        if(last_setrate_block < current_calc_block_num)
+        {
+            //find the consensus leader;
+            string leader = get_consensus_leader();
+            if (leader == "")
+                return;
+
+            //check if we have the leader among our calculators
+            if(calculators.find(leader) == calculators.end())
+                return;
+
+            //set all rates
+            set_rates();
+
+            last_setrate_block = current_calc_block_num;
+            return;
+        }
+
+        ilog("waiting for the next calculation block " + std::to_string(current_calc_block_num + period));
+    }
+
+    void uos_rates_impl::calculate_rates(uint32_t current_calc_block_num){
         int32_t end_block = current_calc_block_num;
         int32_t start_block = end_block - window + 1;
         if (start_block < 1)
@@ -91,7 +135,6 @@ namespace eosio {
 
         logger_i.is_write = true;
         logger_i.setApart(false);
-
 
         logger_i.setFilename(std::string("input_")+ fc::variant(fc::time_point::now()).as_string()+".csv");
 
@@ -112,10 +155,10 @@ namespace eosio {
 
         ilog("a_result.size()" + std::to_string(a_result.size()));
 
-         logger.is_write = true;
-         logger.setApart(false);
+        logger.is_write = true;
+        logger.setApart(false);
 
-        std::string str_result = "";
+        last_result.clear();
         for (auto group : a_result)
         {
             auto group_name = group.first;
@@ -123,57 +166,149 @@ namespace eosio {
             auto norm_map = grv_cals.scale_activity_index(*item_map);
             std::vector<std::string> vec;
             for (auto item : norm_map) {
-                ilog(item.first + " " + item.second.str(5));
+                string name = item.first;
+                string value = item.second.str(5);
 
-                //set_rate(item.first, std::to_string(item.second));
-                std::map<string, string> input_data;
-                input_data["name"] = item.first;
+                //replace new line symbol
+                string nl_symbol = "\n";
+                if(name.find(nl_symbol) !=  std::string::npos)
+                    name.replace(name.find(nl_symbol), nl_symbol.size(), "'\\n'");
 
-                fix_symbol(input_data["name"]);
+                last_result[name] = value;
 
-                input_data["value"] = item.second.str(5);
+                ilog(name + " " + value);
 
-
-                str_result += input_data["name"] + ";" + input_data["value"] + ";";
-                auto result_hash = fc::sha256::hash(str_result);
-
-//               ilog("result hash " + result_hash.str());
-
-                vec.reserve(input_data.size());
-                std::for_each(input_data.begin(), input_data.end(),  [&](std::pair<const std::string, std::string>  & element){
-                    vec.push_back(element.second);
-                });
-                vec.push_back("setrate");
-                vec.push_back(fc::time_point::now());
+                vec.push_back(name);
+                vec.push_back(value);
                 logger.addDatainRow(vec.begin(), vec.end());
-
-                 fc::mutable_variant_object data;
-                 for(auto item : input_data)
-                 data.set(item.first, item.second);
-               run_transaction(contract_acc, "setrate", data, init_pub_key, init_priv_key);
                 vec.clear();
             }
-             logger.setFilename(std::string("result_"+fc::variant(fc::time_point::now()).as_string()+"_"+ to_string_from_enum(group_name) +".csv"));
+            logger.setFilename(std::string("result_"+fc::variant(fc::time_point::now()).as_string()+"_"+ to_string_from_enum(group_name) +".csv"));
         }
-        try{
-            auto result_hash = fc::sha256::hash(str_result);
-            fc::mutable_variant_object data;
-            data.set("acc", "calc1");//config
-            data.set("hash", result_hash.str());
-            data.set("block_num",current_calc_block_num);
-            data.set("memo","v1");// version lib
-            string acc{"acc"};
-            run_transaction(contract_acc_calc, "reporthash", data, init_pub_key_calc, init_priv_key_calc,acc);
+    }
+
+    void uos_rates_impl::calculate_result_hash(){
+        string str_result = "";
+        for(auto item : last_result)
+            str_result += item.first + ";" + item.second + ";";
+        last_result_hash = fc::sha256::hash(str_result);
+    }
+
+    void uos_rates_impl::report_hash(uint32_t current_calc_block_num){
+        for(auto calc_name : calculators) {
+            try {
+                fc::mutable_variant_object data;
+                data.set("acc", calc_name.to_string());
+                data.set("hash", last_result_hash.str());
+                data.set("block_num", current_calc_block_num);
+                data.set("memo", "v1");// version lib
+                string acc{"acc"};
+                run_transaction(contract_calculators, "reporthash", data, calculator_public_key, calculator_private_key,
+                                calc_name.to_string());
+            }
+            catch (const std::exception &e) {
+                string c_fail = "\033[1;31;40m";
+                string c_clear = "\033[1;0m";
+                ilog(e.what());
+                ilog(c_fail + "exception run transaction  calculate: block number " +
+                     std::to_string(last_calc_block) + c_clear);
+            }
         }
-        catch (const std::exception& e)
-        {
-            string c_fail="\033[1;31;40m";
-            string c_clear ="\033[1;0m";
-            ilog(e.what());
-            ilog(c_fail + "exception run transaction  calculate: block number " + std::to_string(current_calc_block_num) +c_clear);
+    }
+
+    string uos_rates_impl::get_consensus_leader(){
+        auto ro_api = app().get_plugin<chain_plugin>().get_read_only_api();
+
+        //get list of current calculators
+        std::set<string> current_calcs;
+        chain_apis::read_only::get_table_rows_params get_calcs;
+        get_calcs.code = eosio::chain::name(contract_calculators);
+        get_calcs.scope = contract_calculators;
+        get_calcs.table = eosio::chain::name("calcreg");
+        get_calcs.limit = 100;
+        get_calcs.json = true;
+        auto calc_rows = ro_api.get_table_rows(get_calcs);
+        for(auto cr : calc_rows.rows) {
+            string calc_owner = cr["owner"].as_string();
+            current_calcs.emplace(calc_owner);
+            ilog("calc_owner " + calc_owner);
         }
 
-         last_calc_block = current_calc_block_num;
+        //determine minimum 3/4 consensus votes
+        int consensus_minimum = (int)std::ceil(current_calcs.size() * 3.0 / 4.0);
+        ilog("consensus_minimum " + std::to_string(consensus_minimum));
+
+        //get list of reports for last_calc_block
+        std::set<fc::variant> reports;
+        chain_apis::read_only::get_table_rows_params get_reps;
+        get_reps.code = eosio::chain::name(contract_calculators);
+        get_reps.scope = contract_calculators;
+        get_reps.table = N(reports);
+        get_reps.key_type = chain_apis::i64;
+        get_reps.index_position = "second";
+        get_reps.lower_bound = std::to_string(last_calc_block);
+        get_reps.limit = current_calcs.size();
+        get_reps.json = true;
+        auto rep_rows = ro_api.get_table_rows(get_reps);
+        for(auto rr : rep_rows.rows) {
+            if(rr["block_num"].as_string() != std::to_string(last_calc_block))
+                break;
+            reports.emplace(rr);
+            ilog("report key:" + rr["key"].as_string() +
+                 " acc:" + rr["acc"].as_string() +
+                 " hash:" + rr["hash"].as_string() +
+                 " block_num:" + rr["block_num"].as_string() +
+                 " memo:" + rr["memo"].as_string());
+        }
+
+        //count votes for hashes
+        std::map<string, int> hash_votes;
+        for(auto r : reports) {
+            auto hash = r["hash"].as_string();
+            ilog("hash vote " + hash);
+            ++hash_votes[hash];
+        }
+
+        //determine consensus hash
+        string consensus_hash = "";
+        for(auto hv : hash_votes) {
+            if (hv.second >= consensus_minimum)
+                consensus_hash = hv.first;
+            ilog("hash " + hv.first + " votes " + std::to_string(hv.second));
+        }
+
+        //return empty string if no consensus hash
+        if(consensus_hash == "") {
+            ilog("no consensus hash");
+            return "";
+        }
+
+        //determine the consensus leader by lowest report key
+        uint32_t min_key = std::numeric_limits<uint32_t>::max();
+        string leader_acc;
+        for(auto r : reports) {
+            if(r["hash"].as_string() != consensus_hash)
+                continue;
+
+            if(r["key"].as_uint64() >= min_key)
+                continue;
+
+            min_key = r["key"].as_uint64();
+            leader_acc = r["acc"].as_string();
+        }
+        ilog("consensus leader " + leader_acc + " key " + std::to_string(min_key));
+
+        return leader_acc;
+    }
+
+    void uos_rates_impl::set_rates(){
+        for(auto item : last_result) {
+            ilog("setrate name " + item.first + " value " + item.second);
+            fc::mutable_variant_object data;
+            data.set("name", item.first);
+            data.set("value", item.second);
+            run_transaction(contract_rates, "setrate", data, rates_public_key, rates_private_key, contract_rates);
+        }
     }
 
     std::vector<std::shared_ptr<singularity::relation_t>> uos_rates_impl::parse_transactions_from_block(
@@ -189,7 +324,7 @@ namespace eosio {
                 auto actions = transaction.actions;
                 for (auto action : actions) {
 
-                    if (action.account.to_string() != contract_acc)
+                    if (action.account.to_string() != contract_activity)
                         continue;
                     if(action.name.to_string()!="usertouser" &&
                        action.name.to_string()!="makecontent" &&
@@ -336,12 +471,7 @@ namespace eosio {
 
         act.name = action;//!!!!!!!!!!!!!!! move constants to settings
         act.account = account;//!!!!!!!
-        if(acc_from.empty()) {
-            act.authorization = vector<chain::permission_level>{{account, chain::config::active_name}};//!!!!!!!!!!
-        } else
-        {
-            act.authorization = vector<chain::permission_level>{{data.find(acc_from)->value().get_string().c_str(), chain::config::active_name}};
-        }
+        act.authorization = vector<chain::permission_level>{{acc_from, chain::config::active_name}};
 
         act.data = eosio_token_serializer.variant_to_binary(action, data, fc::milliseconds(100));
 
@@ -369,22 +499,38 @@ namespace eosio {
 
     void uos_rates::set_program_options(options_description&, options_description& cfg) {
         cfg.add_options()
-                ("gr_catch_email", bpo::value<string>()->default_value("yes"),
-                 "Enable email catcher")
-                ;
-        cfg.add_options()
-                ("gr_catch_string", bpo::value<vector<string>>()->composing(),
-                 "Catch specific string")
+                ("calculation-period", boost::program_options::value<int32_t>()->default_value(300*2), "Calculation period in blocks")
+                ("calculation-window", boost::program_options::value<int32_t>()->default_value(86400*100*2), "Calculation window in blocks")
+                ("contract-activity", boost::program_options::value<std::string>()->default_value("uos.activity"), "Contract account to get the input activity")
+                ("contract-calculators", boost::program_options::value<std::string>()->default_value("calctest1111"), "Contract account to get the calculators list")
+                ("contract-rates", boost::program_options::value<std::string>()->default_value("uos.activity"), "Contract account to save rates")
+                ("calculator-name", boost::program_options::value<vector<string>>()->composing()->multitoken(),
+                 "ID of calculator controlled by this node (e.g. calc1; may specify multiple times)")
+                ("calculator-public-key", boost::program_options::value<std::string>()->default_value("EOS58BF677xSvHd2Q4JiE4Xj2vEc3tzjbJya1onCxa7vKvZeK3rwt"), "")
+                ("calculator-private-key", boost::program_options::value<std::string>()->default_value("5KGH33Z2zrBhWUmU3DmH9n1Jx2GL6H2Vwzk9AZLUPMJrMfWKgKr"), "")
+                ("rates-public-key", boost::program_options::value<std::string>()->default_value("EOS6ZXGf34JNpBeWo6TXrKFGQAJXTUwXTYAdnAN4cajMnLdJh2onU"), "")
+                ("rates-private-key", boost::program_options::value<std::string>()->default_value("5K2FaURJbVHNKcmJfjHYbbkrDXAt2uUMRccL6wsb2HX4nNU3rzV"), "")
                 ;
     }
 
     void uos_rates::plugin_initialize(const variables_map& options) {
-        if(options.count("gr_catch_string")) {
-            auto strings = options["gr_catch_string"].as<vector<string>>();
-            for( auto item : strings){
-                my->str_dictionary.insert(item);
-            }
+        my->_options = &options;
+
+        my->period = options.at("calculation-period").as<int32_t>();
+        my->window = options.at("calculation-window").as<int32_t>();
+        my->contract_activity = options.at("contract-activity").as<std::string>();
+        my->contract_calculators = options.at("contract-calculators").as<std::string>();
+        my->contract_rates = options.at("contract-rates").as<std::string>();
+
+        if( options.count("calculator-name") ) {
+            const std::vector<std::string>& ops = options["calculator-name"].as<std::vector<std::string>>();
+            std::copy(ops.begin(), ops.end(), std::inserter(my->calculators, my->calculators.end()));
         }
+
+        my->calculator_public_key = options.at("calculator-public-key").as<std::string>();
+        my->calculator_private_key = options.at("calculator-private-key").as<std::string>();
+        my->rates_public_key = options.at("rates-public-key").as<std::string>();
+        my->rates_private_key = options.at("rates-private-key").as<std::string>();
     }
 
     void uos_rates::plugin_startup() {
