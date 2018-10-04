@@ -239,7 +239,7 @@ namespace eosio {
         ilog("consensus_minimum " + std::to_string(consensus_minimum));
 
         //get list of reports for last_calc_block
-        std::set<fc::variant> reports;
+        std::vector<fc::variant> reports;
         chain_apis::read_only::get_table_rows_params get_reps;
         get_reps.code = eosio::chain::name(contract_calculators);
         get_reps.scope = contract_calculators;
@@ -253,7 +253,7 @@ namespace eosio {
         for(auto rr : rep_rows.rows) {
             if(rr["block_num"].as_string() != std::to_string(last_calc_block))
                 break;
-            reports.emplace(rr);
+            reports.push_back(rr);
             ilog("report key:" + rr["key"].as_string() +
                  " acc:" + rr["acc"].as_string() +
                  " hash:" + rr["hash"].as_string() +
