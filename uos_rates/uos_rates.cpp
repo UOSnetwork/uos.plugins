@@ -48,7 +48,7 @@ namespace eosio {
 
         friend class uos_rates;
 
-        CSVWriter logger{"result.csv"},logger_i{"input.csv"}, error_log{"error.txt"};
+        CSVWriter logger{"result.csv"},logger_i{"input.csv"};
 
     private:
 
@@ -319,27 +319,27 @@ namespace eosio {
 
         for (auto trs : block->transactions) {
             uint32_t block_height = current_calc_block - block->block_num();
-            try {
-                auto transaction = trs.trx.get<chain::packed_transaction>().get_transaction();
-                auto actions = transaction.actions;
-                for (auto action : actions) {
 
-                    if (action.account.to_string() != contract_activity)
-                        continue;
-                    if(action.name.to_string()!="usertouser" &&
-                       action.name.to_string()!="makecontent" &&
-                       action.name.to_string()!= "usertocont" &&
-                       action.name.to_string()!= "makecontorg")
-                        continue;
+            auto transaction = trs.trx.get<chain::packed_transaction>().get_transaction();
+            auto actions = transaction.actions;
+            for (auto action : actions) {
 
-                    chain_apis::read_only::abi_bin_to_json_params bins;
-                    bins.code = action.account;
-                    bins.action = action.name;
-                    bins.binargs = action.data;
-                    auto json = ro_api.abi_bin_to_json(bins);
-                    auto object = json.args.get_object();
+                if (action.account.to_string() != contract_activity)
+                    continue;
+                if(action.name.to_string()!="usertouser" &&
+                   action.name.to_string()!="makecontent" &&
+                   action.name.to_string()!= "usertocont" &&
+                   action.name.to_string()!= "makecontorg")
+                    continue;
 
-                    if (action.name.to_string() == "usertouser") {
+                chain_apis::read_only::abi_bin_to_json_params bins;
+                bins.code = action.account;
+                bins.action = action.name;
+                bins.binargs = action.data;
+                auto json = ro_api.abi_bin_to_json(bins);
+                auto object = json.args.get_object();
+
+                if (action.name.to_string() == "usertouser") {
 
 
 //                        auto from = object["acc_from"].as_string();
@@ -347,28 +347,28 @@ namespace eosio {
 //                        singularity::transaction_t tran(100000, 1, from, to, time_t(), 100000, 100000);
 //                        transactions_t.push_back(tran);
 //                        ilog("usertouser " + from + " " + to);
-                    }
+                }
 
 
-                    if (action.name.to_string() == "makecontent" ) {
+                if (action.name.to_string() == "makecontent" ) {
 
-                        auto from = object["acc"].as_string();
-                        auto to = object["content_id"].as_string();
-                        auto content_type_id = object["content_type_id"].as_string();
-                        if(content_type_id == "5")
-                            continue;
+                    auto from = object["acc"].as_string();
+                    auto to = object["content_id"].as_string();
+                    auto content_type_id = object["content_type_id"].as_string();
+                    if(content_type_id == "5")
+                        continue;
 
-                        ownership_t ownership(from, to, block_height);
-                        interactions.push_back(std::make_shared<ownership_t>(ownership));
-                        ilog("makecontent " + from + " " + to);
+                    ownership_t ownership(from, to, block_height);
+                    interactions.push_back(std::make_shared<ownership_t>(ownership));
+                    ilog("makecontent " + from + " " + to);
 
-                        std::string s1 = ownership.get_target();
-                        fix_symbol(s1);
-                        std::vector<std::string> vec{block->timestamp.to_time_point(),std::to_string(block->block_num()),ownership.get_source(),s1,
-                                                     ownership.get_name(),std::to_string(ownership.get_height()),std::to_string(ownership.get_weight()),
-                                                     std::to_string(ownership.get_reverse_weight()),to_string_from_enum(ownership.get_source_type()),to_string_from_enum(ownership.get_target_type())};
-                        logger_i.addDatainRow(vec.begin(),vec.end());
-                        vec.clear();
+                    std::string s1 = ownership.get_target();
+                    fix_symbol(s1);
+                    std::vector<std::string> vec{block->timestamp.to_time_point(),std::to_string(block->block_num()),ownership.get_source(),s1,
+                                                 ownership.get_name(),std::to_string(ownership.get_height()),std::to_string(ownership.get_weight()),
+                                                 std::to_string(ownership.get_reverse_weight()),to_string_from_enum(ownership.get_source_type()),to_string_from_enum(ownership.get_target_type())};
+                    logger_i.addDatainRow(vec.begin(),vec.end());
+                    vec.clear();
 
 
 //                        auto parent = object["parent_content_id"].as_string();
@@ -378,67 +378,59 @@ namespace eosio {
 //                            transactions_t.push_back(tran2);
 //                            ilog("parent content " + from + " " + parent);
 //                        }
-                    }
+                }
 
-                    if (action.name.to_string() == "usertocont") {
+                if (action.name.to_string() == "usertocont") {
 
 
-                        auto from = object["acc"].as_string();
-                        auto to = object["content_id"].as_string();
-                        auto interaction_type_id = object["interaction_type_id"].as_string();
-                        if(interaction_type_id == "2") {
-                            upvote_t upvote(from, to, block_height);
-                            interactions.push_back(std::make_shared<upvote_t>(upvote));
-                            ilog("usertocont " + from + " " + to);
+                    auto from = object["acc"].as_string();
+                    auto to = object["content_id"].as_string();
+                    auto interaction_type_id = object["interaction_type_id"].as_string();
+                    if(interaction_type_id == "2") {
+                        upvote_t upvote(from, to, block_height);
+                        interactions.push_back(std::make_shared<upvote_t>(upvote));
+                        ilog("usertocont " + from + " " + to);
 
-                            std::string s1 = upvote.get_target();
-                            fix_symbol(s1);
-                            std::vector<std::string> vec{block->timestamp.to_time_point(),std::to_string(block->block_num()),upvote.get_source(),s1, upvote.get_name(),std::to_string(upvote.get_height()),std::to_string(upvote.get_weight()),
-                                                         std::to_string(upvote.get_reverse_weight()),to_string_from_enum(upvote.get_source_type()),to_string_from_enum(upvote.get_target_type())};
-                            logger_i.addDatainRow(vec.begin(),vec.end());
-                            vec.clear();
-                        }
-                        if(interaction_type_id == "4") {
-                            downvote_t downvote(from, to, block_height);
-                            interactions.push_back(std::make_shared<downvote_t>(downvote));
-                            ilog("usertocont " + from + " " + to);
-
-                            std::string s1 = downvote.get_target();
-                            fix_symbol(s1);
-                            std::vector<std::string> vec{block->timestamp.to_time_point(),std::to_string(block->block_num()),downvote.get_source(),s1,
-                                                         downvote.get_name(),std::to_string(downvote.get_height()),std::to_string(downvote.get_weight()),
-                                                         std::to_string(downvote.get_reverse_weight()),to_string_from_enum(downvote.get_source_type()),to_string_from_enum(downvote.get_target_type())};
-                            logger_i.addDatainRow(vec.begin(),vec.end());
-                            vec.clear();
-                        }
-                    }
-                    if (action.name.to_string() == "makecontorg") {
-
-                        auto from = object["organization_id"].as_string();
-                        auto to = object["content_id"].as_string();
-                        ownership_t ownershiporg(from, to, block_height);
-                        interactions.push_back(std::make_shared<ownership_t>(ownershiporg));
-                        ilog("makecontorg " + from + " " + to);
-
-                        std::string s1 = ownershiporg.get_target();
+                        std::string s1 = upvote.get_target();
                         fix_symbol(s1);
-                        std::vector<std::string> vec{block->timestamp.to_time_point(),std::to_string(block->block_num()),ownershiporg.get_source(),s1,
-                                                     ownershiporg.get_name(),std::to_string(ownershiporg.get_height()),std::to_string(ownershiporg.get_weight()),
-                                                     std::to_string(ownershiporg.get_reverse_weight()),to_string_from_enum(ownershiporg.get_source_type()),to_string_from_enum(ownershiporg.get_target_type())};
+                        std::vector<std::string> vec{block->timestamp.to_time_point(),std::to_string(block->block_num()),upvote.get_source(),s1, upvote.get_name(),std::to_string(upvote.get_height()),std::to_string(upvote.get_weight()),
+                                                     std::to_string(upvote.get_reverse_weight()),to_string_from_enum(upvote.get_source_type()),to_string_from_enum(upvote.get_target_type())};
                         logger_i.addDatainRow(vec.begin(),vec.end());
                         vec.clear();
+                    }
+                    if(interaction_type_id == "4") {
+                        downvote_t downvote(from, to, block_height);
+                        interactions.push_back(std::make_shared<downvote_t>(downvote));
+                        ilog("usertocont " + from + " " + to);
 
+                        std::string s1 = downvote.get_target();
+                        fix_symbol(s1);
+                        std::vector<std::string> vec{block->timestamp.to_time_point(),std::to_string(block->block_num()),downvote.get_source(),s1,
+                                                     downvote.get_name(),std::to_string(downvote.get_height()),std::to_string(downvote.get_weight()),
+                                                     std::to_string(downvote.get_reverse_weight()),to_string_from_enum(downvote.get_source_type()),to_string_from_enum(downvote.get_target_type())};
+                        logger_i.addDatainRow(vec.begin(),vec.end());
+                        vec.clear();
                     }
                 }
+                if (action.name.to_string() == "makecontorg") {
+
+                    auto from = object["organization_id"].as_string();
+                    auto to = object["content_id"].as_string();
+                    ownership_t ownershiporg(from, to, block_height);
+                    interactions.push_back(std::make_shared<ownership_t>(ownershiporg));
+                    ilog("makecontorg " + from + " " + to);
+
+                    std::string s1 = ownershiporg.get_target();
+                    fix_symbol(s1);
+                    std::vector<std::string> vec{block->timestamp.to_time_point(),std::to_string(block->block_num()),ownershiporg.get_source(),s1,
+                                                 ownershiporg.get_name(),std::to_string(ownershiporg.get_height()),std::to_string(ownershiporg.get_weight()),
+                                                 std::to_string(ownershiporg.get_reverse_weight()),to_string_from_enum(ownershiporg.get_source_type()),to_string_from_enum(ownershiporg.get_target_type())};
+                    logger_i.addDatainRow(vec.begin(),vec.end());
+                    vec.clear();
+
+                }
             }
-            catch (...){
-                ilog("exception" + std::to_string(block->block_num()));
-                error_log.is_write = true;
-                error_log.setApart(false);
-                std::vector<std::string> err { std::to_string(block->block_num())};
-                error_log.addDatainRow(err.begin(),err.end());
-                err.clear();
-            }
+
         }
 
         return interactions;
