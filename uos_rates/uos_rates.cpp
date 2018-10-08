@@ -62,6 +62,7 @@ namespace eosio {
         string calculator_private_key = "5KGH33Z2zrBhWUmU3DmH9n1Jx2GL6H2Vwzk9AZLUPMJrMfWKgKr";
         string rates_public_key = "EOS6ZXGf34JNpBeWo6TXrKFGQAJXTUwXTYAdnAN4cajMnLdJh2onU";
         string rates_private_key = "5K2FaURJbVHNKcmJfjHYbbkrDXAt2uUMRccL6wsb2HX4nNU3rzV";
+        bool dump_calc_data = false;
 
 
         uint64_t last_calc_block = 0;
@@ -133,7 +134,7 @@ namespace eosio {
         auto calculator =
                 singularity::rank_calculator_factory::create_calculator_for_social_network(params);
 
-        logger_i.is_write = true;
+        logger_i.is_write = dump_calc_data;
         logger_i.setApart(false);
 
         logger_i.setFilename(std::string("input_")+ fc::variant(fc::time_point::now()).as_string()+".csv");
@@ -155,7 +156,7 @@ namespace eosio {
 
         ilog("a_result.size()" + std::to_string(a_result.size()));
 
-        logger.is_write = true;
+        logger.is_write = dump_calc_data;
         logger.setApart(false);
 
         last_result.clear();
@@ -502,6 +503,7 @@ namespace eosio {
                 ("calculator-private-key", boost::program_options::value<std::string>()->default_value("5KGH33Z2zrBhWUmU3DmH9n1Jx2GL6H2Vwzk9AZLUPMJrMfWKgKr"), "")
                 ("rates-public-key", boost::program_options::value<std::string>()->default_value("EOS6ZXGf34JNpBeWo6TXrKFGQAJXTUwXTYAdnAN4cajMnLdJh2onU"), "")
                 ("rates-private-key", boost::program_options::value<std::string>()->default_value("5K2FaURJbVHNKcmJfjHYbbkrDXAt2uUMRccL6wsb2HX4nNU3rzV"), "")
+                ("dump-calc-data", boost::program_options::value<bool>()->default_value(false), "Save the input and output data as *.csv files")
                 ;
     }
 
@@ -523,6 +525,8 @@ namespace eosio {
         my->calculator_private_key = options.at("calculator-private-key").as<std::string>();
         my->rates_public_key = options.at("rates-public-key").as<std::string>();
         my->rates_private_key = options.at("rates-private-key").as<std::string>();
+
+        my->dump_calc_data = options.at("dump-calc-data").as<bool>();
     }
 
     void uos_rates::plugin_startup() {

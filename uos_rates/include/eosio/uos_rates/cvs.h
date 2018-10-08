@@ -41,6 +41,8 @@ public:
     void inline  setApart(bool state) {apart = state;}
 
     void inline setFilename(std::string filename){
+        if(!is_write)
+            return;
         if ( !boost::filesystem::exists( path ) )
             boost::filesystem::create_directories(path);
         this->fileName = path+filename;
