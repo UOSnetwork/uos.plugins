@@ -73,9 +73,20 @@ namespace eosio {
     };
 
     void uos_rates_impl::irreversible_block_catcher(const eosio::chain::block_state_ptr &bsp) {
+
+        ilog("irreversible_block_catcher started");
         //check the latency
-        auto latency = (fc::time_point::now() - bsp->block->timestamp).count()/1000;
-        if (latency > 100000)
+
+        chain::controller &cc = app().get_plugin<chain_plugin>().chain();
+        auto ro_api = app().get_plugin<chain_plugin>().get_read_only_api();
+        chain_apis::read_only::get_block_params t;
+        t.block_num_or_id = cc.fork_db_head_block_id();
+        auto head_block = ro_api.get_block(t);
+        auto head_block_time_str = head_block["timestamp"].as_string();
+        auto head_block_time = fc::time_point::from_iso_string(head_block_time_str);
+        auto latency = (fc::time_point::now() - head_block_time).count()/1000;
+        ilog("latency " + std::to_string(latency));
+        if (latency > 1000)
             return;
 
         //determine current calculating block number
