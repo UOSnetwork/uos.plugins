@@ -152,12 +152,18 @@ namespace eosio {
 
         for(int i = start_block; i <= end_block; i++)
         {
-            auto block = cc.fetch_block_by_number(i);
+            try {
+                auto block = cc.fetch_block_by_number(i);
 
-            auto interactions = parse_transactions_from_block(block, current_calc_block_num);
+                auto interactions = parse_transactions_from_block(block, current_calc_block_num);
 
 
-            calculator->add_block(interactions);
+                calculator->add_block(interactions);
+            }
+            catch(...)
+            {
+                ilog("Error on parsing block " + std::to_string(i));
+            }
         }
 
 
