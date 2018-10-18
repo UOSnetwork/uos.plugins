@@ -47,6 +47,25 @@ public:
             boost::filesystem::create_directories(path);
         this->fileName = path+filename;
     }
+    
+    //Algoritm Knut-Morris_Pratt
+    void calc_z(std::string &s, std::vector<int> &z) {
+        int len = s.size();
+        z.resize(len);
+
+        int l = 0, r = 0;
+        for (int i = 1; i < len; ++i)
+         if (z[i - l] + i <= r)
+            z[i] = z[i - l];
+         else {
+            l = i;
+            if (i > r) r = i;
+            for (z[i] = r - i; r < len; ++r, ++z[i])
+                if (s[r] != s[z[i]])
+                    break;
+            --r;
+        }
+    }
 
 };
 
