@@ -341,13 +341,12 @@ namespace eosio {
             auto transaction = trs.trx.get<chain::packed_transaction>().get_transaction();
             auto actions = transaction.actions;
             for (auto action : actions) {
-
-                if (action.account.to_string() != contract_activity)
+                if (action.account != eosio::chain::string_to_name(contract_activity.c_str()))
                     continue;
-                if(action.name.to_string()!="usertouser" &&
-                   action.name.to_string()!="makecontent" &&
-                   action.name.to_string()!= "usertocont" &&
-                   action.name.to_string()!= "makecontorg")
+                if(action.name != N(usertouser) &&
+                   action.name != N(makecontent) &&
+                   action.name != N(usertocont) &&
+                   action.name != N(makecontorg))
                     continue;
 
                 chain_apis::read_only::abi_bin_to_json_params bins;
@@ -357,7 +356,7 @@ namespace eosio {
                 auto json = ro_api.abi_bin_to_json(bins);
                 auto object = json.args.get_object();
 
-                if (action.name.to_string() == "usertouser") {
+                if (action.name == N(usertouser)) {
 
 
 //                        auto from = object["acc_from"].as_string();
@@ -368,7 +367,7 @@ namespace eosio {
                 }
 
 
-                if (action.name.to_string() == "makecontent" ) {
+                if (action.name == N(makecontent) ) {
 
                     auto from = object["acc"].as_string();
                     auto to = object["content_id"].as_string();
@@ -398,7 +397,7 @@ namespace eosio {
 //                        }
                 }
 
-                if (action.name.to_string() == "usertocont") {
+                if (action.name == N(usertocont)) {
 
 
                     auto from = object["acc"].as_string();
@@ -430,7 +429,7 @@ namespace eosio {
                         vec.clear();
                     }
                 }
-                if (action.name.to_string() == "makecontorg") {
+                if (action.name == N(makecontorg)) {
 
                     auto from = object["organization_id"].as_string();
                     auto to = object["content_id"].as_string();
