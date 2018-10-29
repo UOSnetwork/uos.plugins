@@ -48,7 +48,7 @@ namespace eosio {
 
         friend class uos_rates;
 
-        CSVWriter logger{"result.csv"},logger_i{"input.csv"};
+        CSVWriter logger{"result.csv"},logger_i{"input.csv"},transaction_log{"transaction.csv"};
 
     private:
 
@@ -95,6 +95,8 @@ namespace eosio {
         auto current_calc_block_num = irr_block_num - (irr_block_num % period);
         ilog((std::string("last_calc_block ") + std::to_string(last_calc_block) + " current_calc_block "+std::to_string(current_calc_block_num)).c_str());
 
+        transaction_log.settings(false, false);
+        transaction_log.setFilename(std::string("transaction_")+ fc::variant(fc::time_point::now()).as_string()+".csv");
 
         if(last_calc_block < current_calc_block_num) {
             //perform the calculations
@@ -145,9 +147,7 @@ namespace eosio {
         auto calculator =
                 singularity::rank_calculator_factory::create_calculator_for_social_network(params);
 
-        logger_i.is_write = dump_calc_data;
-        logger_i.setApart(false);
-
+        logger_i.settings(false,dump_calc_data);
         logger_i.setFilename(std::string("input_")+ fc::variant(fc::time_point::now()).as_string()+".csv");
 
         for(int i = start_block; i <= end_block; i++)
@@ -173,8 +173,7 @@ namespace eosio {
 
         ilog("a_result.size()" + std::to_string(a_result.size()));
 
-        logger.is_write = dump_calc_data;
-        logger.setApart(false);
+        logger.settings(false, dump_calc_data);
 
         last_result.clear();
         for (auto group : a_result)
@@ -225,11 +224,8 @@ namespace eosio {
                                 calc_name.to_string());
             }
             catch (const std::exception &e) {
-                string c_fail = "\033[1;31;40m";
-                string c_clear = "\033[1;0m";
                 ilog(e.what());
-                ilog(c_fail + "exception run transaction  calculate: block number " +
-                     std::to_string(last_calc_block) + c_clear);
+                ilog(c_fail + "exception run transaction  calculate: block number " + std::to_string(last_calc_block) + c_clear);
             }
         }
     }
@@ -341,6 +337,28 @@ namespace eosio {
             auto transaction = trs.trx.get<chain::packed_transaction>().get_transaction();
             auto actions = transaction.actions;
             for (auto action : actions) {
+
+                if (action.account == N(eosio.token))
+                {
+                   // ilog(std::string("\e[0;35m") + " TRANSACTION  EOSIO.TOKEN: " +std::to_string(block->block_num()) + c_clear);
+                    std::vector<std::string> vec{action.account.to_string(),action.name.to_string(), std::to_string(block->block_num()),block->timestamp.to_time_point()};
+                    transaction_log.addDatainRow(vec.begin(),vec.end());
+                    vec.clear();
+                }
+
+//                if (action.name.to_string() == "transfer") {
+//
+//                    std::vector<std::string> vec{action.name.to_string(), std::to_string(block->block_num()),block->timestamp.to_time_point()};
+//                    transaction_log.addDatainRow(vec.begin(),vec.end());
+//                    vec.clear();
+//                    ilog(std::string("\e[0;32m") + " TRANSACTION FOUND BLOCK:" +std::to_string(block->block_num()) + c_clear);
+//                    sleep(1);
+//                }
+//                else {
+//                    ilog(std::string("\e[1;34m") + "TRANSACTION NOT FOUND  " +std::to_string(block->block_num()) + c_clear);
+//                     }
+
+
                 if (action.account != eosio::chain::string_to_name(contract_activity.c_str()))
                     continue;
                 if(action.name != N(usertouser) &&
