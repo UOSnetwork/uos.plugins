@@ -8,7 +8,7 @@
 #include <fc/io/json.hpp>
 #include <fc/crypto/sha256.hpp>
 #include <eosio/uos_rates/cvs.h>
-
+#include <algorithm>
 #include <boost/program_options.hpp>
 
 
@@ -33,6 +33,10 @@ namespace eosio {
 
         void set_rates();
 
+        void set_accrue();
+
+        vector<std::string> get_account();
+
         std::vector<std::shared_ptr<singularity::relation_t>> parse_transactions_from_block(
                 eosio::chain::signed_block_ptr block, uint32_t current_calc_block);
 
@@ -48,7 +52,7 @@ namespace eosio {
 
         friend class uos_rates;
 
-        CSVWriter logger{"result.csv"},logger_i{"input.csv"};
+        CSVWriter logger{"result.csv"},logger_i{"input.csv"},transaction_log{"transaction.csv"},charge_log{"chacrge_log.csv"};
 
     private:
 
@@ -57,16 +61,30 @@ namespace eosio {
         string contract_activity = "uos.activity";
         string contract_calculators = "calctest1111";
         string contract_rates = "uos.activity";
+        string contract_accounter = "setrate15";
+        string account_charge = "uos.treas" ;
         std::set<chain::account_name> calculators;
         string calculator_public_key = "EOS58BF677xSvHd2Q4JiE4Xj2vEc3tzjbJya1onCxa7vKvZeK3rwt";
         string calculator_private_key = "5KGH33Z2zrBhWUmU3DmH9n1Jx2GL6H2Vwzk9AZLUPMJrMfWKgKr";
         string rates_public_key = "EOS6ZXGf34JNpBeWo6TXrKFGQAJXTUwXTYAdnAN4cajMnLdJh2onU";
         string rates_private_key = "5K2FaURJbVHNKcmJfjHYbbkrDXAt2uUMRccL6wsb2HX4nNU3rzV";
+        string treas_public_key{rates_public_key},treas_private_key{rates_private_key};
+
+        const uint32_t seconds_per_year = 365*24*3600;
+        const double yearly_emission_percent = 100.0;
+        const int64_t  max_token_year = 1000000000;
+        const uint8_t blocks_per_second = 2;
+        const double standby_emission_ratio = max_token_year
+                                            * yearly_emission_percent / 100
+                                              / seconds_per_year
+                                              * period / blocks_per_second;
+
         bool dump_calc_data = false;
 
 
         uint64_t last_calc_block = 0;
         std::map<string, string> last_result;
+        std::map<string, string> preliminary_result;
         fc::sha256 last_result_hash;
 
         uint64_t last_setrate_block = 0;
@@ -95,6 +113,8 @@ namespace eosio {
         auto current_calc_block_num = irr_block_num - (irr_block_num % period);
         ilog((std::string("last_calc_block ") + std::to_string(last_calc_block) + " current_calc_block "+std::to_string(current_calc_block_num)).c_str());
 
+        transaction_log.settings(false, false);
+        transaction_log.setFilename(std::string("transaction_")+ fc::variant(fc::time_point::now()).as_string()+".csv");
 
         if(last_calc_block < current_calc_block_num) {
             //perform the calculations
@@ -110,16 +130,19 @@ namespace eosio {
         if(last_setrate_block < current_calc_block_num)
         {
             //find the consensus leader;
-            string leader = get_consensus_leader();
-            if (leader == "")
-                return;
-
-            //check if we have the leader among our calculators
-            if(calculators.find(leader) == calculators.end())
-                return;
+//            string leader = get_consensus_leader();
+//            if (leader == "")
+//                return;
+//
+//            //check if we have the leader among our calculators
+//            if(calculators.find(leader) == calculators.end())
+//                return;
 
             //set all rates
             set_rates();
+
+            //emission token for account's with rates
+            set_accrue();
 
             last_setrate_block = current_calc_block_num;
             return;
@@ -145,9 +168,7 @@ namespace eosio {
         auto calculator =
                 singularity::rank_calculator_factory::create_calculator_for_social_network(params);
 
-        logger_i.is_write = dump_calc_data;
-        logger_i.setApart(false);
-
+        logger_i.settings(false,dump_calc_data);
         logger_i.setFilename(std::string("input_")+ fc::variant(fc::time_point::now()).as_string()+".csv");
 
         for(int i = start_block; i <= end_block; i++)
@@ -173,16 +194,25 @@ namespace eosio {
 
         ilog("a_result.size()" + std::to_string(a_result.size()));
 
-        logger.is_write = dump_calc_data;
-        logger.setApart(false);
+        logger.settings(false, dump_calc_data);
 
         last_result.clear();
+        preliminary_result.clear();
         for (auto group : a_result)
         {
             auto group_name = group.first;
             auto item_map = group.second;
+            for (auto item : *item_map) {
+                string name = item.first;
+                string value = item.second.str(5);
+                preliminary_result[name] = value;
+
+            }
+
             auto norm_map = grv_cals.scale_activity_index(*item_map);
             std::vector<std::string> vec;
+
+
             for (auto item : norm_map) {
                 string name = item.first;
                 string value = item.second.str(5);
@@ -225,11 +255,8 @@ namespace eosio {
                                 calc_name.to_string());
             }
             catch (const std::exception &e) {
-                string c_fail = "\033[1;31;40m";
-                string c_clear = "\033[1;0m";
                 ilog(e.what());
-                ilog(c_fail + "exception run transaction  calculate: block number " +
-                     std::to_string(last_calc_block) + c_clear);
+                ilog(c_fail + "exception run transaction  calculate: block number " + std::to_string(last_calc_block) + c_clear);
             }
         }
     }
@@ -329,6 +356,50 @@ namespace eosio {
         }
     }
 
+    vector<std::string> uos_rates_impl::get_account()
+    {
+        chain::controller &cc = app().get_plugin<chain_plugin>().chain();
+        const auto &database = cc.db();
+        typedef typename chainbase::get_index_type< chain::account_object >::type index_type;
+        const auto &table = database.get_index<index_type,chain::by_name>();
+        std::vector <std::string> account_name;
+        for(chain::account_object item: table){
+            ilog(c_fail + "ACCOUNTS:" + item.name.to_string()+ c_clear);
+            account_name.push_back(item.name.to_string());
+        }
+        return account_name;
+    }
+
+    void uos_rates_impl::set_accrue()
+    {
+        charge_log.settings(false, true);
+        charge_log.setFilename(std::string("charge_")+ fc::variant(fc::time_point::now()).as_string()+".csv");
+
+        std::vector <std::string> account_name = get_account();
+        for(auto item : preliminary_result) {
+        auto result = std::find(account_name.begin(), account_name.end(), item.first);
+        if (result != account_name.end()) {
+
+            double sum = std::stod(item.second) * standby_emission_ratio;
+            ilog(std::string("\e[0;32m") + "Charge name " + item.first + " charge " +
+                 std::to_string(sum) + c_clear);
+            fc::mutable_variant_object data;
+            data.set("issuer", account_charge);
+            data.set("receiver", item.first);
+            data.set("sum", sum);
+            data.set("message", "charge for rates");
+
+            std::vector<std::string> vec{account_charge,item.first,std::to_string(sum)};
+            charge_log.addDatainRow(vec.begin(),vec.end());
+            vec.clear();
+
+            std::cout << "account_name содержит: " << account_charge<<item.first<<sum<< '\n';
+            run_transaction(contract_accounter, "addsum", data, treas_public_key, treas_private_key, account_charge);
+        }
+        }
+
+    }
+
     std::vector<std::shared_ptr<singularity::relation_t>> uos_rates_impl::parse_transactions_from_block(
             eosio::chain::signed_block_ptr block, uint32_t current_calc_block){
 
@@ -342,12 +413,34 @@ namespace eosio {
             auto actions = transaction.actions;
             for (auto action : actions) {
 
-                if (action.account.to_string() != contract_activity)
+//                if (action.account == N(eosio.token))
+//                {
+//                    ilog(std::string("\e[0;35m") + " TRANSACTION  EOSIO.TOKEN: " +std::to_string(block->block_num()) + c_clear);
+//                    std::vector<std::string> vec{action.account.to_string(),action.name.to_string(), std::to_string(block->block_num()),block->timestamp.to_time_point()};
+//                    transaction_log.addDatainRow(vec.begin(),vec.end());
+//                    vec.clear();
+
+//                }
+//
+//                if (action.name.to_string() == "transfer") {
+//
+//                    std::vector<std::string> vec{action.name.to_string(), std::to_string(block->block_num()),block->timestamp.to_time_point()};
+//                    transaction_log.addDatainRow(vec.begin(),vec.end());
+//                    vec.clear();
+//                    ilog(std::string("\e[0;32m") + " TRANSACTION FOUND BLOCK:" +std::to_string(block->block_num()) + c_clear);
+//                    sleep(1);
+//                }
+//                else {
+//                    ilog(std::string("\e[1;34m") + "TRANSACTION NOT FOUND  " +std::to_string(block->block_num()) + c_clear);
+//                     }
+
+
+                if (action.account != eosio::chain::string_to_name(contract_activity.c_str()))
                     continue;
-                if(action.name.to_string()!="usertouser" &&
-                   action.name.to_string()!="makecontent" &&
-                   action.name.to_string()!= "usertocont" &&
-                   action.name.to_string()!= "makecontorg")
+                if(action.name != N(usertouser) &&
+                   action.name != N(makecontent) &&
+                   action.name != N(usertocont) &&
+                   action.name != N(makecontorg))
                     continue;
 
                 chain_apis::read_only::abi_bin_to_json_params bins;
@@ -357,7 +450,7 @@ namespace eosio {
                 auto json = ro_api.abi_bin_to_json(bins);
                 auto object = json.args.get_object();
 
-                if (action.name.to_string() == "usertouser") {
+                if (action.name == N(usertouser)) {
 
 
 //                        auto from = object["acc_from"].as_string();
@@ -368,7 +461,7 @@ namespace eosio {
                 }
 
 
-                if (action.name.to_string() == "makecontent" ) {
+                if (action.name == N(makecontent) ) {
 
                     auto from = object["acc"].as_string();
                     auto to = object["content_id"].as_string();
@@ -398,7 +491,7 @@ namespace eosio {
 //                        }
                 }
 
-                if (action.name.to_string() == "usertocont") {
+                if (action.name == N(usertocont)) {
 
 
                     auto from = object["acc"].as_string();
@@ -430,7 +523,7 @@ namespace eosio {
                         vec.clear();
                     }
                 }
-                if (action.name.to_string() == "makecontorg") {
+                if (action.name == N(makecontorg)) {
 
                     auto from = object["organization_id"].as_string();
                     auto to = object["content_id"].as_string();
