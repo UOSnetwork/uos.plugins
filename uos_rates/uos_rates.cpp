@@ -33,6 +33,10 @@ namespace eosio {
 
         void set_rates();
 
+       /**
+       * @brief emission(who has rates)
+       *
+       */
         void set_accrue();
 
         vector<std::string> get_account();
@@ -52,7 +56,7 @@ namespace eosio {
 
         friend class uos_rates;
 
-        CSVWriter logger{"result.csv"},logger_i{"input.csv"},transaction_log{"transaction.csv"},charge_log{"chacrge_log.csv"};
+        CSVWriter logger{"result.csv"},logger_i{"input.csv"},transaction_log{"transaction.csv"},charge_log{"charge_log.csv"};
 
     private:
 
@@ -61,8 +65,8 @@ namespace eosio {
         string contract_activity = "uos.activity";
         string contract_calculators = "calctest1111";
         string contract_rates = "uos.activity";
-        string contract_accounter = "setrate15";
-        string account_charge = "uos.treas" ;
+        string contract_accounter = "setrate15";//who has contracts
+        string account_charge = "uos.treas" ;//issuer
         std::set<chain::account_name> calculators;
         string calculator_public_key = "EOS58BF677xSvHd2Q4JiE4Xj2vEc3tzjbJya1onCxa7vKvZeK3rwt";
         string calculator_private_key = "5KGH33Z2zrBhWUmU3DmH9n1Jx2GL6H2Vwzk9AZLUPMJrMfWKgKr";
@@ -130,13 +134,13 @@ namespace eosio {
         if(last_setrate_block < current_calc_block_num)
         {
             //find the consensus leader;
-//            string leader = get_consensus_leader();
-//            if (leader == "")
-//                return;
-//
-//            //check if we have the leader among our calculators
-//            if(calculators.find(leader) == calculators.end())
-//                return;
+            string leader = get_consensus_leader();
+            if (leader == "")
+                return;
+
+            //check if we have the leader among our calculators
+            if(calculators.find(leader) == calculators.end())
+                return;
 
             //set all rates
             set_rates();
@@ -255,7 +259,6 @@ namespace eosio {
                                 calc_name.to_string());
             }
             catch (const std::exception &e) {
-                ilog(e.what());
                 ilog(c_fail + "exception run transaction  calculate: block number " + std::to_string(last_calc_block) + c_clear);
             }
         }
@@ -392,7 +395,7 @@ namespace eosio {
             std::vector<std::string> vec{account_charge,item.first,std::to_string(sum)};
             charge_log.addDatainRow(vec.begin(),vec.end());
             vec.clear();
-//            std::cout << "account_name содержит: " << account_charge<<item.first<<sum<< '\n';
+//            std::cout << "account_name have: " << account_charge<<item.first<<sum<< '\n';
             run_transaction(contract_accounter, "addsum", data, treas_public_key, treas_private_key, account_charge);
         }
         }
@@ -422,27 +425,13 @@ namespace eosio {
                 }
 
 
-//                if (action.account == N(eosio.token))
-//                {
-//                    ilog(std::string("\e[0;35m") + " TRANSACTION  EOSIO.TOKEN: " +std::to_string(block->block_num()) + c_clear);
-//                    std::vector<std::string> vec{action.account.to_string(),action.name.to_string(), std::to_string(block->block_num()),block->timestamp.to_time_point()};
-//                    transaction_log.addDatainRow(vec.begin(),vec.end());
-//                    vec.clear();
+                if (action.name == N(transfer)) {
 
-//                }
-//
-
-//                if (action.name.to_string() == "transfer") {
-//
-//                    std::vector<std::string> vec{action.name.to_string(), std::to_string(block->block_num()),block->timestamp.to_time_point()};
-//                    transaction_log.addDatainRow(vec.begin(),vec.end());
-//                    vec.clear();
+                    std::vector<std::string> vec{action.name.to_string(), std::to_string(block->block_num()),block->timestamp.to_time_point()};
+                    transaction_log.addDatainRow(vec.begin(),vec.end());
+                    vec.clear();
 //                    ilog(std::string("\e[0;32m") + " TRANSACTION FOUND BLOCK:" +std::to_string(block->block_num()) + c_clear);
-//                    sleep(1);
-//                }
-//                else {
-//                    ilog(std::string("\e[1;34m") + "TRANSACTION NOT FOUND  " +std::to_string(block->block_num()) + c_clear);
-//                     }
+                }
 
 
                 if (action.account != eosio::chain::string_to_name(contract_activity.c_str()))
