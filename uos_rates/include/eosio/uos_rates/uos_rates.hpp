@@ -128,4 +128,65 @@ namespace eosio {
             return singularity::node_type::CONTENT;
         };
     };
+
+    class transaction_t: public singularity::relation_t
+    {
+        using money_t = singularity::money_t;
+        using node_type = singularity::node_type;
+    private:
+        money_t amount;
+       // money_t comission;
+       // money_t source_account_balance;
+       // money_t target_account_balance;
+        time_t timestamp;
+    public:
+        transaction_t (
+                money_t amount,
+//                money_t comission,
+                std::string source,
+                std::string target,
+                time_t timestamp,
+               // money_t source_account_balance,
+               // money_t target_account_balance,
+                uint64_t height
+        ) :
+                relation_t(source, target, height),
+                amount(amount),
+              //  comission(comission),
+              //  source_account_balance(source_account_balance),
+              //  target_account_balance(target_account_balance),
+                timestamp(timestamp)
+        { };
+        virtual int64_t get_weight() {
+            return (int64_t) amount;
+        };
+        virtual int64_t get_reverse_weight() {
+            return - (int64_t) amount;
+        };
+        virtual std::string get_name() {
+            return "TRANSFER";
+        };
+        money_t get_amount()
+        {
+            return amount;
+        };
+//        money_t get_source_account_balance()
+//        {
+//            return source_account_balance;
+//        };
+//        money_t get_target_account_balance()
+//        {
+//            return target_account_balance;
+//        };
+        virtual bool is_decayable() {
+            return true;
+        };
+        virtual node_type get_source_type() {
+            return node_type::ACCOUNT;
+        };
+        virtual node_type get_target_type(){
+            return node_type::ACCOUNT;
+        };
+    };
+
 }

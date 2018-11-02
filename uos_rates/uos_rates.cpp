@@ -56,7 +56,7 @@ namespace eosio {
 
         friend class uos_rates;
 
-        CSVWriter logger{"result.csv"},logger_i{"input.csv"},transaction_log{"transaction.csv"},charge_log{"charge_log.csv"};
+        CSVWriter rates_log{"rates.csv"},social_activity_log{"social_activity.csv"},transaction_log{"transaction.csv"},transfer_rates_log{"transfer_rates.csv"},charge_log{"charge_log.csv"};
 
     private:
 
@@ -85,10 +85,11 @@ namespace eosio {
 
         bool dump_calc_data = false;
 
-
+        std::vector<std::shared_ptr<singularity::relation_t>> my_transfer_interactions;
         uint64_t last_calc_block = 0;
         std::map<string, string> last_result;
         std::map<string, string> preliminary_result;
+        std::map<string, string> transfer_result;
         fc::sha256 last_result_hash;
 
         uint64_t last_setrate_block = 0;
@@ -117,7 +118,7 @@ namespace eosio {
         auto current_calc_block_num = irr_block_num - (irr_block_num % period);
         ilog((std::string("last_calc_block ") + std::to_string(last_calc_block) + " current_calc_block "+std::to_string(current_calc_block_num)).c_str());
 
-        transaction_log.settings(false, false);
+        transaction_log.settings(false, true);
         transaction_log.setFilename(std::string("transaction_")+ fc::variant(fc::time_point::now()).as_string()+".csv");
 
         if(last_calc_block < current_calc_block_num) {
@@ -169,36 +170,46 @@ namespace eosio {
 
         //activity calculator for social interactions
         singularity::parameters_t params;
-        auto calculator =
+        auto social_calculator =
                 singularity::rank_calculator_factory::create_calculator_for_social_network(params);
+        auto transfer_calculator =
+                singularity::rank_calculator_factory::create_calculator_for_transfer(params);
 
-        logger_i.settings(false,dump_calc_data);
-        logger_i.setFilename(std::string("input_")+ fc::variant(fc::time_point::now()).as_string()+".csv");
+        social_activity_log.settings(false,dump_calc_data);
+        social_activity_log.setFilename(std::string("social_activity")+ fc::variant(fc::time_point::now()).as_string()+".csv");
 
         for(int i = start_block; i <= end_block; i++)
         {
             try {
                 auto block = cc.fetch_block_by_number(i);
 
-                auto interactions = parse_transactions_from_block(block, current_calc_block_num);
+                auto social_interactions = parse_transactions_from_block(block, current_calc_block_num);
 
+                social_calculator->add_block(social_interactions);
 
-                calculator->add_block(interactions);
+                transfer_calculator->add_block(my_transfer_interactions);
+
+            }
+            catch(std::exception e){
+                elog(e.what());
             }
             catch(...)
             {
-                ilog("Error on parsing block " + std::to_string(i));
+                elog("Error on parsing block " + std::to_string(i));
             }
         }
 
 
-        auto a_result = calculator->calculate();
+        auto a_result = social_calculator->calculate();
+
+        auto b_result = transfer_calculator->calculate();
 
         singularity::gravity_index_calculator grv_cals(0.1, 0.9, 100000000000);
 
         ilog("a_result.size()" + std::to_string(a_result.size()));
 
-        logger.settings(false, dump_calc_data);
+        rates_log.settings(false, true);
+        transfer_rates_log.settings(false, true);
 
         last_result.clear();
         preliminary_result.clear();
@@ -232,12 +243,42 @@ namespace eosio {
 
                 vec.push_back(name);
                 vec.push_back(value);
-                logger.addDatainRow(vec.begin(), vec.end());
+                rates_log.addDatainRow(vec.begin(), vec.end());
                 vec.clear();
             }
-            logger.setFilename(std::string("result_"+fc::variant(fc::time_point::now()).as_string()+"_"+ to_string_from_enum(group_name) +".csv"));
+            rates_log.setFilename(std::string("rates_"+fc::variant(fc::time_point::now()).as_string()+"_"+ to_string_from_enum(group_name) +".csv"));
+        }
+
+        for (auto group : b_result)
+        {
+            auto group_name = group.first;
+            auto item_map = group.second;
+
+            auto norm_map = grv_cals.scale_activity_index(*item_map);
+            std::vector<std::string> vec;
+
+            for (auto item : norm_map) {
+                string name = item.first;
+                string value = item.second.str(5);
+
+                //replace new line symbol
+                string nl_symbol = "\n";
+                if(name.find(nl_symbol) !=  std::string::npos)
+                    name.replace(name.find(nl_symbol), nl_symbol.size(), "'\\n'");
+
+                transfer_result[name] = value;
+
+                ilog(name + " " + value);
+
+                vec.push_back(name);
+                vec.push_back(value);
+                transfer_rates_log.addDatainRow(vec.begin(), vec.end());
+                vec.clear();
+            }
+            transfer_rates_log.setFilename(std::string("transfer_rates_"+fc::variant(fc::time_point::now()).as_string()+"_"+ to_string_from_enum(group_name) +".csv"));
         }
     }
+
 
     void uos_rates_impl::calculate_result_hash(){
         string str_result = "";
@@ -405,7 +446,9 @@ namespace eosio {
     std::vector<std::shared_ptr<singularity::relation_t>> uos_rates_impl::parse_transactions_from_block(
             eosio::chain::signed_block_ptr block, uint32_t current_calc_block){
 
-        std::vector<std::shared_ptr<singularity::relation_t>> interactions;
+        std::vector<std::shared_ptr<singularity::relation_t>> social_interactions;
+        std::vector<std::shared_ptr<singularity::relation_t>> transfer_interactions;
+
         auto ro_api = app().get_plugin<chain_plugin>().get_read_only_api();
 
         for (auto trs : block->transactions) {
@@ -415,24 +458,39 @@ namespace eosio {
             auto actions = transaction.actions;
             for (auto action : actions) {
 
+                if (action.account == N(eosio.token)) {
+                    ilog(std::string("\e[0;32m") + " TRANSACTION FOUND BLOCK:" +
+                         std::to_string(block->block_num()) + action.name.to_string() + c_clear);
+                    sleep(1);
 
-                if (action.account == N(eosio.token))
-                {
-                   // ilog(std::string("\e[0;35m") + " TRANSACTION  EOSIO.TOKEN: " +std::to_string(block->block_num()) + c_clear);
-                    std::vector<std::string> vec{action.account.to_string(),action.name.to_string(), std::to_string(block->block_num()),block->timestamp.to_time_point()};
-                    transaction_log.addDatainRow(vec.begin(),vec.end());
-                    vec.clear();
+                    if (action.name == N(transfer)) {
+
+                        chain_apis::read_only::abi_bin_to_json_params bins;
+                        bins.code = action.account;
+                        bins.action = action.name;
+                        bins.binargs = action.data;
+                        auto json = ro_api.abi_bin_to_json(bins);
+                        auto object = json.args.get_object();
+
+                        auto from = object["from"].as_string();
+                        auto to = object["to"].as_string();
+                        auto quantity = asset::from_string(object["quantity"].as_string()).get_amount();
+                        auto memo = object["memo"].as_string();
+
+                        time_t epoch = 0;
+
+//                      transaction_t transfer(quantity,0,from, to,epoch ,1,1, block_height);
+
+                        transaction_t transfer(quantity,from, to,epoch , block_height);
+                        transfer_interactions.push_back(std::make_shared<transaction_t>(transfer));
+                         my_transfer_interactions = transfer_interactions;
+
+                        std::vector<std::string> vec{action.account.to_string(), action.name.to_string(),
+                                                     from,to,std::to_string(quantity),memo, std::to_string(block->block_num()), block->timestamp.to_time_point()};
+                        transaction_log.addDatainRow(vec.begin(), vec.end());
+                        vec.clear();
+                    }
                 }
-
-
-                if (action.name == N(transfer)) {
-
-                    std::vector<std::string> vec{action.name.to_string(), std::to_string(block->block_num()),block->timestamp.to_time_point()};
-                    transaction_log.addDatainRow(vec.begin(),vec.end());
-                    vec.clear();
-//                    ilog(std::string("\e[0;32m") + " TRANSACTION FOUND BLOCK:" +std::to_string(block->block_num()) + c_clear);
-                }
-
 
                 if (action.account != eosio::chain::string_to_name(contract_activity.c_str()))
                     continue;
@@ -448,6 +506,9 @@ namespace eosio {
                 bins.binargs = action.data;
                 auto json = ro_api.abi_bin_to_json(bins);
                 auto object = json.args.get_object();
+
+
+
 
                 if (action.name == N(usertouser)) {
 
@@ -469,7 +530,7 @@ namespace eosio {
                         continue;
 
                     ownership_t ownership(from, to, block_height);
-                    interactions.push_back(std::make_shared<ownership_t>(ownership));
+                    social_interactions.push_back(std::make_shared<ownership_t>(ownership));
                     ilog("makecontent " + from + " " + to);
 
                     std::string s1 = ownership.get_target();
@@ -477,7 +538,7 @@ namespace eosio {
                     std::vector<std::string> vec{block->timestamp.to_time_point(),std::to_string(block->block_num()),ownership.get_source(),s1,
                                                  ownership.get_name(),std::to_string(ownership.get_height()),std::to_string(ownership.get_weight()),
                                                  std::to_string(ownership.get_reverse_weight()),to_string_from_enum(ownership.get_source_type()),to_string_from_enum(ownership.get_target_type())};
-                    logger_i.addDatainRow(vec.begin(),vec.end());
+                    social_activity_log.addDatainRow(vec.begin(),vec.end());
                     vec.clear();
 
 
@@ -498,19 +559,19 @@ namespace eosio {
                     auto interaction_type_id = object["interaction_type_id"].as_string();
                     if(interaction_type_id == "2") {
                         upvote_t upvote(from, to, block_height);
-                        interactions.push_back(std::make_shared<upvote_t>(upvote));
+                        social_interactions.push_back(std::make_shared<upvote_t>(upvote));
                         ilog("usertocont " + from + " " + to);
 
                         std::string s1 = upvote.get_target();
                         fix_symbol(s1);
                         std::vector<std::string> vec{block->timestamp.to_time_point(),std::to_string(block->block_num()),upvote.get_source(),s1, upvote.get_name(),std::to_string(upvote.get_height()),std::to_string(upvote.get_weight()),
                                                      std::to_string(upvote.get_reverse_weight()),to_string_from_enum(upvote.get_source_type()),to_string_from_enum(upvote.get_target_type())};
-                        logger_i.addDatainRow(vec.begin(),vec.end());
+                        social_activity_log.addDatainRow(vec.begin(),vec.end());
                         vec.clear();
                     }
                     if(interaction_type_id == "4") {
                         downvote_t downvote(from, to, block_height);
-                        interactions.push_back(std::make_shared<downvote_t>(downvote));
+                        social_interactions.push_back(std::make_shared<downvote_t>(downvote));
                         ilog("usertocont " + from + " " + to);
 
                         std::string s1 = downvote.get_target();
@@ -518,7 +579,7 @@ namespace eosio {
                         std::vector<std::string> vec{block->timestamp.to_time_point(),std::to_string(block->block_num()),downvote.get_source(),s1,
                                                      downvote.get_name(),std::to_string(downvote.get_height()),std::to_string(downvote.get_weight()),
                                                      std::to_string(downvote.get_reverse_weight()),to_string_from_enum(downvote.get_source_type()),to_string_from_enum(downvote.get_target_type())};
-                        logger_i.addDatainRow(vec.begin(),vec.end());
+                        social_activity_log.addDatainRow(vec.begin(),vec.end());
                         vec.clear();
                     }
                 }
@@ -527,7 +588,7 @@ namespace eosio {
                     auto from = object["organization_id"].as_string();
                     auto to = object["content_id"].as_string();
                     ownership_t ownershiporg(from, to, block_height);
-                    interactions.push_back(std::make_shared<ownership_t>(ownershiporg));
+                    social_interactions.push_back(std::make_shared<ownership_t>(ownershiporg));
                     ilog("makecontorg " + from + " " + to);
 
                     std::string s1 = ownershiporg.get_target();
@@ -535,7 +596,7 @@ namespace eosio {
                     std::vector<std::string> vec{block->timestamp.to_time_point(),std::to_string(block->block_num()),ownershiporg.get_source(),s1,
                                                  ownershiporg.get_name(),std::to_string(ownershiporg.get_height()),std::to_string(ownershiporg.get_weight()),
                                                  std::to_string(ownershiporg.get_reverse_weight()),to_string_from_enum(ownershiporg.get_source_type()),to_string_from_enum(ownershiporg.get_target_type())};
-                    logger_i.addDatainRow(vec.begin(),vec.end());
+                    social_activity_log.addDatainRow(vec.begin(),vec.end());
                     vec.clear();
 
                 }
@@ -543,7 +604,7 @@ namespace eosio {
 
         }
 
-        return interactions;
+        return social_interactions;
     }
 
     void uos_rates_impl::run_transaction(
