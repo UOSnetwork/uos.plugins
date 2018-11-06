@@ -697,9 +697,33 @@ namespace eosio {
         signed_trx.sign(creator_priv_key, cc.get_chain_id());
 
         try {
-            app().get_plugin<chain_plugin>().accept_transaction(
-                    chain::packed_transaction(move(signed_trx)),
-                    [](const fc::static_variant<fc::exception_ptr, chain::transaction_trace_ptr> &result) {});
+
+            app().get_method<eosio::chain::plugin_interface::incoming::methods::transaction_async>()(
+                    std::make_shared<chain::packed_transaction>(chain::packed_transaction(move(signed_trx))),
+                    true,
+                    [this](const fc::static_variant<fc::exception_ptr, chain::transaction_trace_ptr>& result) -> void{
+                    if (result.contains<fc::exception_ptr>()) {
+//                        next(result.get<fc::exception_ptr>());
+                        elog(fc::json::to_string(result.get<fc::exception_ptr>()));
+                    } else {
+                        auto trx_trace_ptr = result.get<chain::transaction_trace_ptr>();
+
+                        try {
+                            fc::variant pretty_output;
+                            pretty_output = app().get_plugin<chain_plugin>().chain().to_variant_with_abi(*trx_trace_ptr, fc::milliseconds(100));
+                            ilog(fc::json::to_string(pretty_output));
+//                            chain::transaction_id_type id = trx_trace_ptr->id;
+//                            next(read_write::push_transaction_results{id, pretty_output});
+                        } //CATCH_AND_CALL(next);
+                        catch (...){
+                            elog("Error ");
+                        }
+                    }
+            });
+
+//            app().get_plugin<chain_plugin>().accept_transaction(
+//                    chain::packed_transaction(move(signed_trx)),
+//                    [](const fc::static_variant<fc::exception_ptr, chain::transaction_trace_ptr> &result) {});
             ilog("transaction sent " + action);
 
         } catch (...) {
