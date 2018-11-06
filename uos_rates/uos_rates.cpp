@@ -631,6 +631,8 @@ namespace eosio {
     }
 
     void uos_rates_impl::run_trx_queue(uint64_t num) {
+        if (num == 0)
+            return;
         if((fc::time_point::now() - app().get_plugin<chain_plugin>().chain().head_block_header().timestamp)  < fc::seconds(3)) {
             ilog("Run transactions");
             if (trx_queue.empty())
@@ -662,8 +664,6 @@ namespace eosio {
                     temp.push(last);
                     trx_queue.pop();
                 }
-//                run_transaction(trx_queue.front());
-//                trx_queue.pop();
             }
             run_transaction(temp);
             if(temp.size()>0){
@@ -688,12 +688,6 @@ namespace eosio {
         auto creator_priv_key = fc::crypto::private_key(temp.front().priv_key);
         auto creator_pub_key = fc::crypto::public_key(temp.front().pub_key);
         chain::controller &cc = app().get_plugin<chain_plugin>().chain();
-        if(cc.pending_block_state()== nullptr){
-            ilog("catch nullptr in activity");
-        }
-        else{
-            ilog(fc::string(cc.pending_block_state()->header.timestamp.to_time_point()));
-        }
 
         chain::signed_transaction signed_trx;
         chain::action act;
@@ -754,12 +748,6 @@ namespace eosio {
         auto creator_priv_key = fc::crypto::private_key(priv_key);
         auto creator_pub_key = fc::crypto::public_key(pub_key);
         chain::controller &cc = app().get_plugin<chain_plugin>().chain();
-        if(cc.pending_block_state()== nullptr){
-            ilog("catch nullptr in activity");
-        }
-        else{
-            ilog(fc::string(cc.pending_block_state()->header.timestamp.to_time_point()));
-        }
 
         chain::signed_transaction signed_trx;
         chain::action act;
@@ -789,7 +777,6 @@ namespace eosio {
                     true,
                     [this](const fc::static_variant<fc::exception_ptr, chain::transaction_trace_ptr>& result) -> void{
                     if (result.contains<fc::exception_ptr>()) {
-//                        next(result.get<fc::exception_ptr>());
                         elog(fc::json::to_string(result.get<fc::exception_ptr>()));
                     } else {
                         auto trx_trace_ptr = result.get<chain::transaction_trace_ptr>();
@@ -798,18 +785,13 @@ namespace eosio {
                             fc::variant pretty_output;
                             pretty_output = app().get_plugin<chain_plugin>().chain().to_variant_with_abi(*trx_trace_ptr, fc::milliseconds(100));
                             ilog(fc::json::to_string(pretty_output));
-//                            chain::transaction_id_type id = trx_trace_ptr->id;
-//                            next(read_write::push_transaction_results{id, pretty_output});
-                        } //CATCH_AND_CALL(next);
+                        }
                         catch (...){
                             elog("Error ");
                         }
                     }
             });
 
-//            app().get_plugin<chain_plugin>().accept_transaction(
-//                    chain::packed_transaction(move(signed_trx)),
-//                    [](const fc::static_variant<fc::exception_ptr, chain::transaction_trace_ptr> &result) {});
             ilog("transaction sent " + action);
 
         } catch (...) {
@@ -865,7 +847,7 @@ namespace eosio {
         chain::controller &cc = app().get_plugin<chain_plugin>().chain();
 
         cc.irreversible_block.connect([this](const auto& bsp){
-            my->run_trx_queue(1);
+            my->run_trx_queue(10);
             my->irreversible_block_catcher(bsp);
         });
 
