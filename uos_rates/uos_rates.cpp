@@ -78,20 +78,20 @@ namespace eosio {
         int32_t period = 300*2;
         int32_t window = 86400*2*100;
         string contract_activity = "uos.activity";
-        string contract_calculators = "calctest1111";
-        string contract_rates = "uos.activity";
-        string contract_accounter = "setrate15";//who has contracts
-        string account_charge = "uos.treas" ;//issuer
+        string contract_calculators = "uos.calcs";
+        string contract_rates = "uos.calcs";
+        string contract_accounter = "uos.calcs";//who has contracts
+        string account_charge = "uos.calcs" ;//issuer
         std::set<chain::account_name> calculators;
-        string calculator_public_key = "EOS58BF677xSvHd2Q4JiE4Xj2vEc3tzjbJya1onCxa7vKvZeK3rwt";
-        string calculator_private_key = "5KGH33Z2zrBhWUmU3DmH9n1Jx2GL6H2Vwzk9AZLUPMJrMfWKgKr";
-        string rates_public_key = "EOS6ZXGf34JNpBeWo6TXrKFGQAJXTUwXTYAdnAN4cajMnLdJh2onU";
-        string rates_private_key = "5K2FaURJbVHNKcmJfjHYbbkrDXAt2uUMRccL6wsb2HX4nNU3rzV";
+        string calculator_public_key = "EOS8PHKG2Kkb5VYS4aqgQ2gLCDeXjs8hqtaVtUctmF7rMREkAMCra";
+        string calculator_private_key = "5JaMHGeTTypkni3cTSZA9mLi6MTBBi6avdb5BdCcT1DhREvLJuo";
+        string rates_public_key = "EOS8PHKG2Kkb5VYS4aqgQ2gLCDeXjs8hqtaVtUctmF7rMREkAMCra";
+        string rates_private_key = "5JaMHGeTTypkni3cTSZA9mLi6MTBBi6avdb5BdCcT1DhREvLJuo";
         string treas_public_key{rates_public_key},treas_private_key{rates_private_key};
 
         const uint32_t seconds_per_year = 365*24*3600;
         const double yearly_emission_percent = 100.0;
-        const int64_t  max_token_year = 1000000000;
+        const int64_t  max_token_year = 1000000000 / 100;
         const uint8_t blocks_per_second = 2;
         const double standby_emission_ratio = max_token_year
                                             * yearly_emission_percent / 100
@@ -142,8 +142,8 @@ namespace eosio {
             //perform the calculations
             calculate_rates(current_calc_block_num);
             //reprort the result hash
-            calculate_result_hash();
-            report_hash(current_calc_block_num);
+//            calculate_result_hash();
+//            report_hash(current_calc_block_num);
 
             last_calc_block = current_calc_block_num;
             return;
@@ -151,14 +151,14 @@ namespace eosio {
 
         if(last_setrate_block < current_calc_block_num)
         {
-            //find the consensus leader;
-            string leader = get_consensus_leader();
-            if (leader == "")
-                return;
-
-            //check if we have the leader among our calculators
-            if(calculators.find(leader) == calculators.end())
-                return;
+//            //find the consensus leader;
+//            string leader = get_consensus_leader();
+//            if (leader == "")
+//                return;
+//
+//            //check if we have the leader among our calculators
+//            if(calculators.find(leader) == calculators.end())
+//                return;
 
             //set all rates
             set_rates();
@@ -634,8 +634,14 @@ namespace eosio {
             for (uint64_t i = 0; i < num; i++) {
                 if (trx_queue.empty())
                     break;
-                run_transaction(trx_queue.front());
+                ilog("trx_queue.front() " + trx_queue.front().account + " " +
+                             trx_queue.front().acc_from + " " +
+                             trx_queue.front().action + " " +
+                             fc::json::to_string(trx_queue.front().data) + " " +
+                             trx_queue.front().priv_key + " " + " " +
+                             trx_queue.front().pub_key);
                 trx_queue.pop();
+                run_transaction(trx_queue.front());
             }
         }
     }
@@ -705,42 +711,42 @@ namespace eosio {
     uos_rates::~uos_rates(){}
 
     void uos_rates::set_program_options(options_description&, options_description& cfg) {
-        cfg.add_options()
-                ("calculation-period", boost::program_options::value<int32_t>()->default_value(300*2), "Calculation period in blocks")
-                ("calculation-window", boost::program_options::value<int32_t>()->default_value(86400*100*2), "Calculation window in blocks")
-                ("contract-activity", boost::program_options::value<std::string>()->default_value("uos.activity"), "Contract account to get the input activity")
-                ("contract-calculators", boost::program_options::value<std::string>()->default_value("calctest1111"), "Contract account to get the calculators list")
-                ("contract-rates", boost::program_options::value<std::string>()->default_value("uos.activity"), "Contract account to save rates")
-                ("calculator-name", boost::program_options::value<vector<string>>()->composing()->multitoken(),
-                 "ID of calculator controlled by this node (e.g. calc1; may specify multiple times)")
-                ("calculator-public-key", boost::program_options::value<std::string>()->default_value("EOS58BF677xSvHd2Q4JiE4Xj2vEc3tzjbJya1onCxa7vKvZeK3rwt"), "")
-                ("calculator-private-key", boost::program_options::value<std::string>()->default_value("5KGH33Z2zrBhWUmU3DmH9n1Jx2GL6H2Vwzk9AZLUPMJrMfWKgKr"), "")
-                ("rates-public-key", boost::program_options::value<std::string>()->default_value("EOS6ZXGf34JNpBeWo6TXrKFGQAJXTUwXTYAdnAN4cajMnLdJh2onU"), "")
-                ("rates-private-key", boost::program_options::value<std::string>()->default_value("5K2FaURJbVHNKcmJfjHYbbkrDXAt2uUMRccL6wsb2HX4nNU3rzV"), "")
-                ("dump-calc-data", boost::program_options::value<bool>()->default_value(false), "Save the input and output data as *.csv files")
-                ;
+//        cfg.add_options()
+//                ("calculation-period", boost::program_options::value<int32_t>()->default_value(300*2), "Calculation period in blocks")
+//                ("calculation-window", boost::program_options::value<int32_t>()->default_value(86400*100*2), "Calculation window in blocks")
+//                ("contract-activity", boost::program_options::value<std::string>()->default_value("uos.activity"), "Contract account to get the input activity")
+//                ("contract-calculators", boost::program_options::value<std::string>()->default_value("calctest1111"), "Contract account to get the calculators list")
+//                ("contract-rates", boost::program_options::value<std::string>()->default_value("uos.activity"), "Contract account to save rates")
+//                ("calculator-name", boost::program_options::value<vector<string>>()->composing()->multitoken(),
+//                 "ID of calculator controlled by this node (e.g. calc1; may specify multiple times)")
+//                ("calculator-public-key", boost::program_options::value<std::string>()->default_value("EOS58BF677xSvHd2Q4JiE4Xj2vEc3tzjbJya1onCxa7vKvZeK3rwt"), "")
+//                ("calculator-private-key", boost::program_options::value<std::string>()->default_value("5KGH33Z2zrBhWUmU3DmH9n1Jx2GL6H2Vwzk9AZLUPMJrMfWKgKr"), "")
+//                ("rates-public-key", boost::program_options::value<std::string>()->default_value("EOS6ZXGf34JNpBeWo6TXrKFGQAJXTUwXTYAdnAN4cajMnLdJh2onU"), "")
+//                ("rates-private-key", boost::program_options::value<std::string>()->default_value("5K2FaURJbVHNKcmJfjHYbbkrDXAt2uUMRccL6wsb2HX4nNU3rzV"), "")
+//                ("dump-calc-data", boost::program_options::value<bool>()->default_value(false), "Save the input and output data as *.csv files")
+//                ;
     }
 
     void uos_rates::plugin_initialize(const variables_map& options) {
-        my->_options = &options;
-
-        my->period = options.at("calculation-period").as<int32_t>();
-        my->window = options.at("calculation-window").as<int32_t>();
-        my->contract_activity = options.at("contract-activity").as<std::string>();
-        my->contract_calculators = options.at("contract-calculators").as<std::string>();
-        my->contract_rates = options.at("contract-rates").as<std::string>();
-
-        if( options.count("calculator-name") ) {
-            const std::vector<std::string>& ops = options["calculator-name"].as<std::vector<std::string>>();
-            std::copy(ops.begin(), ops.end(), std::inserter(my->calculators, my->calculators.end()));
-        }
-
-        my->calculator_public_key = options.at("calculator-public-key").as<std::string>();
-        my->calculator_private_key = options.at("calculator-private-key").as<std::string>();
-        my->rates_public_key = options.at("rates-public-key").as<std::string>();
-        my->rates_private_key = options.at("rates-private-key").as<std::string>();
-
-        my->dump_calc_data = options.at("dump-calc-data").as<bool>();
+//        my->_options = &options;
+//
+//        my->period = options.at("calculation-period").as<int32_t>();
+//        my->window = options.at("calculation-window").as<int32_t>();
+//        my->contract_activity = options.at("contract-activity").as<std::string>();
+//        my->contract_calculators = options.at("contract-calculators").as<std::string>();
+//        my->contract_rates = options.at("contract-rates").as<std::string>();
+//
+//        if( options.count("calculator-name") ) {
+//            const std::vector<std::string>& ops = options["calculator-name"].as<std::vector<std::string>>();
+//            std::copy(ops.begin(), ops.end(), std::inserter(my->calculators, my->calculators.end()));
+//        }
+//
+//        my->calculator_public_key = options.at("calculator-public-key").as<std::string>();
+//        my->calculator_private_key = options.at("calculator-private-key").as<std::string>();
+//        my->rates_public_key = options.at("rates-public-key").as<std::string>();
+//        my->rates_private_key = options.at("rates-private-key").as<std::string>();
+//
+//        my->dump_calc_data = options.at("dump-calc-data").as<bool>();
     }
 
     void uos_rates::plugin_startup() {
@@ -749,7 +755,7 @@ namespace eosio {
         chain::controller &cc = app().get_plugin<chain_plugin>().chain();
 
         cc.irreversible_block.connect([this](const auto& bsp){
-            my->run_trx_queue(10);
+            my->run_trx_queue(1);
             my->irreversible_block_catcher(bsp);
         });
 

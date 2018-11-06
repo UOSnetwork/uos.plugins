@@ -20,7 +20,7 @@ namespace eosio {
         trx_to_run();
         trx_to_run(string acc, string act, fc::mutable_variant_object d, string pubk, string privk, string accfrom){
             account = acc;
-            action = action;
+            action = act;
             data = d;
             pub_key = pubk;
             priv_key = privk;
