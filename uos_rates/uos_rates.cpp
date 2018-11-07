@@ -1,4 +1,5 @@
 #include <eosio/uos_rates/uos_rates.hpp>
+#include <eosio/uos_rates/transaction_queqe.hpp>
 #include <eosio/chain/exceptions.hpp>
 #include <eosio/chain_api_plugin/chain_api_plugin.hpp>
 #include <eosio/http_plugin/http_plugin.hpp>
@@ -22,6 +23,8 @@ namespace eosio {
     public:
 
         void irreversible_block_catcher(const chain::block_state_ptr& bsp);
+
+        void run_trx_queue(uint64_t num);
 
         void calculate_rates(uint32_t current_calc_block_num);
 
@@ -52,6 +55,20 @@ namespace eosio {
                 string priv_key,
                 string acc_from = "");
 
+        void run_transaction(transaction_queue &temp);
+
+        void add_transaction(
+                string account,
+                string action,
+                fc::mutable_variant_object data,
+                string pub_key,
+                string priv_key,
+                string acc_from = "");
+
+        void run_transaction(trx_to_run trx){run_transaction(trx.account,trx.action,trx.data,trx.pub_key,trx.priv_key,trx.acc_from);}
+
+        void add_transaction(trx_to_run trx){trx_queue.push(trx);}
+
         boost::program_options::variables_map _options;
 
         friend class uos_rates;
@@ -63,20 +80,20 @@ namespace eosio {
         int32_t period = 300*2;
         int32_t window = 86400*2*100;
         string contract_activity = "uos.activity";
-        string contract_calculators = "calctest1111";
-        string contract_rates = "uos.activity";
-        string contract_accounter = "setrate15";//who has contracts
-        string account_charge = "uos.treas" ;//issuer
+        string contract_calculators = "uos.calcs";
+        string contract_rates = "uos.calcs";
+        string contract_accounter = "uos.calcs";//who has contracts
+        string account_charge = "uos.calcs" ;//issuer
         std::set<chain::account_name> calculators;
-        string calculator_public_key = "EOS58BF677xSvHd2Q4JiE4Xj2vEc3tzjbJya1onCxa7vKvZeK3rwt";
-        string calculator_private_key = "5KGH33Z2zrBhWUmU3DmH9n1Jx2GL6H2Vwzk9AZLUPMJrMfWKgKr";
-        string rates_public_key = "EOS6ZXGf34JNpBeWo6TXrKFGQAJXTUwXTYAdnAN4cajMnLdJh2onU";
-        string rates_private_key = "5K2FaURJbVHNKcmJfjHYbbkrDXAt2uUMRccL6wsb2HX4nNU3rzV";
+        string calculator_public_key = "EOS8PHKG2Kkb5VYS4aqgQ2gLCDeXjs8hqtaVtUctmF7rMREkAMCra";
+        string calculator_private_key = "5JaMHGeTTypkni3cTSZA9mLi6MTBBi6avdb5BdCcT1DhREvLJuo";
+        string rates_public_key = "EOS8PHKG2Kkb5VYS4aqgQ2gLCDeXjs8hqtaVtUctmF7rMREkAMCra";
+        string rates_private_key = "5JaMHGeTTypkni3cTSZA9mLi6MTBBi6avdb5BdCcT1DhREvLJuo";
         string treas_public_key{rates_public_key},treas_private_key{rates_private_key};
 
         const uint32_t seconds_per_year = 365*24*3600;
         const double yearly_emission_percent = 100.0;
-        const int64_t  max_token_year = 1000000000;
+        const int64_t  max_token_year = 1000000000 / 100;
         const uint8_t blocks_per_second = 2;
         const double standby_emission_ratio = max_token_year
                                             * yearly_emission_percent / 100
@@ -93,6 +110,8 @@ namespace eosio {
         fc::sha256 last_result_hash;
 
         uint64_t last_setrate_block = 0;
+
+        transaction_queue trx_queue;
     };
 
     void uos_rates_impl::irreversible_block_catcher(const eosio::chain::block_state_ptr &bsp) {
@@ -296,8 +315,10 @@ namespace eosio {
                 data.set("block_num", current_calc_block_num);
                 data.set("memo", "v1");// version lib
                 string acc{"acc"};
-                run_transaction(contract_calculators, "reporthash", data, calculator_public_key, calculator_private_key,
+                add_transaction(contract_calculators, "reporthash", data, calculator_public_key, calculator_private_key,
                                 calc_name.to_string());
+////                run_transaction(contract_calculators, "reporthash", data, calculator_public_key, calculator_private_key,
+////                                calc_name.to_string());
             }
             catch (const std::exception &e) {
                 ilog(c_fail + "exception run transaction  calculate: block number " + std::to_string(last_calc_block) + c_clear);
@@ -396,7 +417,8 @@ namespace eosio {
             fc::mutable_variant_object data;
             data.set("name", item.first);
             data.set("value", item.second);
-            run_transaction(contract_rates, "setrate", data, rates_public_key, rates_private_key, contract_rates);
+            add_transaction(contract_rates, "setrate", data, rates_public_key, rates_private_key, contract_rates);
+////            run_transaction(contract_rates, "setrate", data, rates_public_key, rates_private_key, contract_rates);
         }
     }
 
@@ -437,7 +459,8 @@ namespace eosio {
             charge_log.addDatainRow(vec.begin(),vec.end());
             vec.clear();
 //            std::cout << "account_name have: " << account_charge<<item.first<<sum<< '\n';
-            run_transaction(contract_accounter, "addsum", data, treas_public_key, treas_private_key, account_charge);
+            add_transaction(contract_accounter, "addsum", data, treas_public_key, treas_private_key, account_charge);
+////            run_transaction(contract_accounter, "addsum", data, treas_public_key, treas_private_key, account_charge);
         }
         }
 
@@ -607,6 +630,113 @@ namespace eosio {
         return social_interactions;
     }
 
+    void uos_rates_impl::run_trx_queue(uint64_t num) {
+        if (num == 0)
+            return;
+        if((fc::time_point::now() - app().get_plugin<chain_plugin>().chain().head_block_header().timestamp)  < fc::seconds(3)) {
+            ilog("Run transactions");
+            if (trx_queue.empty())
+                return;
+            trx_to_run last = trx_queue.front();
+            transaction_queue temp;
+            trx_queue.pop();
+            temp.push(last);
+            for (uint64_t i = 1; i < num; i++) {
+                if (trx_queue.empty())
+                    break;
+//                ilog("trx_queue.front() " + trx_queue.front().account + " " +
+//                             trx_queue.front().acc_from + " " +
+//                             trx_queue.front().action + " " +
+//                             fc::json::to_string(trx_queue.front().data) + " " +
+//                             trx_queue.front().priv_key + " " + " " +
+//                             trx_queue.front().pub_key);
+                if((last.account==trx_queue.front().account)&&(last.action==trx_queue.front().action)){
+                    temp.push(trx_queue.front());
+                    trx_queue.pop();
+                }
+                else{
+                    run_transaction(temp);
+                    if(temp.size()>0){
+                        elog("queue > 0, something went wrong");
+                        return;
+                    }
+                    last = trx_queue.front();
+                    temp.push(last);
+                    trx_queue.pop();
+                }
+            }
+            run_transaction(temp);
+            if(temp.size()>0){
+                elog("queue > 0, something went wrong");
+                return;
+            }
+        }
+    }
+
+    void uos_rates_impl::add_transaction(
+            string account,
+            string action,
+            fc::mutable_variant_object data,
+            string pub_key,
+            string priv_key,
+            string acc_from)
+    {
+        trx_queue.emplace(trx_to_run(account,action,data,pub_key,priv_key,acc_from));
+    }
+
+    void uos_rates_impl::run_transaction(transaction_queue &temp){
+        auto creator_priv_key = fc::crypto::private_key(temp.front().priv_key);
+        auto creator_pub_key = fc::crypto::public_key(temp.front().pub_key);
+        chain::controller &cc = app().get_plugin<chain_plugin>().chain();
+
+        chain::signed_transaction signed_trx;
+        chain::action act;
+        chain::abi_serializer eosio_token_serializer;
+
+        auto &accnt = cc.db().get<chain::account_object, chain::by_name>(temp.front().account);
+        eosio_token_serializer.set_abi(accnt.get_abi(), fc::milliseconds(100));
+
+        act.name = temp.front().action;//!!!!!!!!!!!!!!! move constants to settings
+        act.account = temp.front().account;//!!!!!!!
+        act.authorization = vector<chain::permission_level>{{temp.front().acc_from, chain::config::active_name}};
+
+        while(temp.size()) {
+            act.data = eosio_token_serializer.variant_to_binary(temp.front().action, temp.front().data, fc::milliseconds(100));
+            signed_trx.actions.push_back(act);
+            temp.pop();
+        }
+        signed_trx.expiration = cc.head_block_time() + fc::seconds(5);
+        signed_trx.set_reference_block(cc.head_block_id());
+        signed_trx.max_net_usage_words = 5000;
+        signed_trx.sign(creator_priv_key, cc.get_chain_id());
+        try {
+            app().get_method<eosio::chain::plugin_interface::incoming::methods::transaction_async>()(
+                    std::make_shared<chain::packed_transaction>(chain::packed_transaction(move(signed_trx))),
+                    true,
+                    [this](const fc::static_variant<fc::exception_ptr, chain::transaction_trace_ptr>& result) -> void{
+                        if (result.contains<fc::exception_ptr>()) {
+                            elog(fc::json::to_string(result.get<fc::exception_ptr>()));
+                        } else {
+                            auto trx_trace_ptr = result.get<chain::transaction_trace_ptr>();
+
+                            try {
+                                fc::variant pretty_output;
+                                pretty_output = app().get_plugin<chain_plugin>().chain().to_variant_with_abi(*trx_trace_ptr, fc::milliseconds(100));
+                                ilog(fc::json::to_string(pretty_output));
+                            }
+                            catch (...){
+                                elog("Error ");
+                            }
+                        }
+                    });
+            ilog("transaction sent ");
+
+        } catch (...) {
+            elog("Error in accept transaction");
+        }
+
+    }
+
     void uos_rates_impl::run_transaction(
             string account,
             string action,
@@ -618,12 +748,6 @@ namespace eosio {
         auto creator_priv_key = fc::crypto::private_key(priv_key);
         auto creator_pub_key = fc::crypto::public_key(pub_key);
         chain::controller &cc = app().get_plugin<chain_plugin>().chain();
-        if(cc.pending_block_state()== nullptr){
-            ilog("catch nullptr in activity");
-        }
-        else{
-            ilog(fc::string(cc.pending_block_state()->header.timestamp.to_time_point()));
-        }
 
         chain::signed_transaction signed_trx;
         chain::action act;
@@ -641,15 +765,33 @@ namespace eosio {
         //signed_trx.actions.emplace_back(act);
         signed_trx.actions.push_back(act);
 
-        signed_trx.expiration = cc.head_block_time() + fc::seconds(500);
+        signed_trx.expiration = cc.head_block_time() + fc::seconds(5);
         signed_trx.set_reference_block(cc.head_block_id());
         signed_trx.max_net_usage_words = 5000;
         signed_trx.sign(creator_priv_key, cc.get_chain_id());
 
         try {
-            app().get_plugin<chain_plugin>().accept_transaction(
-                    chain::packed_transaction(move(signed_trx)),
-                    [](const fc::static_variant<fc::exception_ptr, chain::transaction_trace_ptr> &result) {});
+
+            app().get_method<eosio::chain::plugin_interface::incoming::methods::transaction_async>()(
+                    std::make_shared<chain::packed_transaction>(chain::packed_transaction(move(signed_trx))),
+                    true,
+                    [this](const fc::static_variant<fc::exception_ptr, chain::transaction_trace_ptr>& result) -> void{
+                    if (result.contains<fc::exception_ptr>()) {
+                        elog(fc::json::to_string(result.get<fc::exception_ptr>()));
+                    } else {
+                        auto trx_trace_ptr = result.get<chain::transaction_trace_ptr>();
+
+                        try {
+                            fc::variant pretty_output;
+                            pretty_output = app().get_plugin<chain_plugin>().chain().to_variant_with_abi(*trx_trace_ptr, fc::milliseconds(100));
+                            ilog(fc::json::to_string(pretty_output));
+                        }
+                        catch (...){
+                            elog("Error ");
+                        }
+                    }
+            });
+
             ilog("transaction sent " + action);
 
         } catch (...) {
@@ -704,7 +846,10 @@ namespace eosio {
 
         chain::controller &cc = app().get_plugin<chain_plugin>().chain();
 
-        cc.irreversible_block.connect([this](const auto& bsp){my->irreversible_block_catcher(bsp);});
+        cc.irreversible_block.connect([this](const auto& bsp){
+            my->run_trx_queue(10);
+            my->irreversible_block_catcher(bsp);
+        });
 
     }
 
