@@ -4,6 +4,7 @@
 #include <eosio/chain_api_plugin/chain_api_plugin.hpp>
 #include <eosio/http_plugin/http_plugin.hpp>
 #include <../../../libraries/singularity/include/singularity.hpp>
+#include <../../../libraries/singularity/generated/git_version.hpp>
 
 
 #include <fc/io/json.hpp>
@@ -90,6 +91,7 @@ namespace eosio {
         string rates_public_key = "EOS8PHKG2Kkb5VYS4aqgQ2gLCDeXjs8hqtaVtUctmF7rMREkAMCra";
         string rates_private_key = "5JaMHGeTTypkni3cTSZA9mLi6MTBBi6avdb5BdCcT1DhREvLJuo";
         string treas_public_key{rates_public_key},treas_private_key{rates_private_key};
+
 
         const uint32_t seconds_per_year = 365*24*3600;
         const double yearly_emission_percent = 100.0;
@@ -307,13 +309,14 @@ namespace eosio {
     }
 
     void uos_rates_impl::report_hash(uint32_t current_calc_block_num){
+        auto version = string(GIT_BRANCH) + "."+ GIT_COMMIT_HASH;
         for(auto calc_name : calculators) {
             try {
                 fc::mutable_variant_object data;
                 data.set("acc", calc_name.to_string());
                 data.set("hash", last_result_hash.str());
                 data.set("block_num", current_calc_block_num);
-                data.set("memo", "v1");// version lib
+                data.set("memo", version);// version lib
                 string acc{"acc"};
                 add_transaction(contract_calculators, "reporthash", data, calculator_public_key, calculator_private_key,
                                 calc_name.to_string());
