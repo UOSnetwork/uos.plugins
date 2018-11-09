@@ -25,6 +25,34 @@ namespace eosio {
         std::unique_ptr<class uos_rates_impl> my;
     };
 
+    class result_item
+    {
+    public:
+        string name;
+        string type;
+        string soc_rate;
+        string soc_rate_scaled;
+        string trans_rate;
+        string trans_rate_scaled;
+        string importance;
+        string importance_scaled;
+        string prev_cumulative_emission;
+        string current_emission;
+        string current_cumulative_emission;
+    };
+
+    class result_set
+    {
+    public:
+        uint64_t block_num;
+        map<string, result_item> res_map;
+        string result_hash;
+
+        result_set(uint64_t bn){
+          block_num = bn;
+        };
+    };
+
     class upvote_t: public singularity::relation_t
     {
     public:
