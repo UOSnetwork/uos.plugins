@@ -69,7 +69,7 @@ namespace eosio {
 
         friend class uos_rates;
 
-        CSVWriter social_activity_log{"social_activity.csv"},transaction_log{"transaction.csv"}
+        CSVWriter social_activity_log{"social_activity.csv"},transaction_log{"transaction.csv"};
 
     private:
 
