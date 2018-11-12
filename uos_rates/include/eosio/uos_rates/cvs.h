@@ -14,37 +14,27 @@
  *  class for logger(helper for write result )
  *
  */
-std::string c_fail = "\033[1;31;40m";
-std::string c_clear = "\033[1;0m";
-
 
 class CSVWriter
 {
+    std::string path;
     std::string fileName;
     std::string delimeter;
-    int linesCount;
-    bool is_apart, is_write;
-    const std::string path{"/home/calc_log/"};
+    bool write_enabled;
 
 public:
-    CSVWriter(std::string filename, std::string delm = ";", int lc  = 1, bool write = false ) :
-            fileName(filename), delimeter(delm), linesCount(lc), is_write(write)
+    CSVWriter(std::string directory = "/home/calc_log/", std::string delm = ";", bool write = false ) :
+            path(directory), delimeter(delm), write_enabled(write)
     {}
-    CSVWriter(const CSVWriter & vs)
-    {
-        fileName =vs.fileName;
-        delimeter = vs.delimeter;
-        linesCount = vs.linesCount;
-        is_write = vs.is_write;
-        is_apart = vs.is_apart;
-    }
     template<typename T>
     void addDatainRow(T first, T last);
 
-    void inline settings(bool is_apart, bool is_write){this->is_apart = is_apart; this->is_write = is_write;}
+    void inline set_write_enabled(bool write){this->write_enabled = write;}
 
-    void inline setFilename(std::string filename){
-        if(!is_write)
+    void inline set_path(std::string directory){this->path = directory;}
+
+    void inline set_filename(std::string filename){
+        if(!write_enabled)
             return;
         if ( !boost::filesystem::exists( path ) )
             boost::filesystem::create_directories(path);
@@ -56,22 +46,18 @@ public:
     template<typename T>
 void CSVWriter::addDatainRow(T first, T last)
 {
-    if(is_write == false)
+    if(!write_enabled)
         return;
 
     std::fstream file;
-    if(is_apart == false)
+
         try {
-            file.open(fileName, std::ios::out | (linesCount ? std::ios::app : std::ios::trunc));
+            file.open(fileName, std::ios::out | std::ios::app);
         }
         catch (...)
         {
             std::cout<<"could open file";
         }
-    else
-    {
-        file.open(*first, std::ios::out | (linesCount ? std::ios::app : std::ios::trunc));
-    }
 
     for (; first != last; )
     {
@@ -80,7 +66,6 @@ void CSVWriter::addDatainRow(T first, T last)
             file << delimeter;
     }
     file << "\n";
-    linesCount++;
 
     file.close();
 }
