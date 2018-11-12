@@ -298,10 +298,6 @@ namespace eosio {
             std::stringstream ss;
             ss << std::fixed << std::setprecision(10) << importance;
             result.res_map[name].importance = ss.str();
-            ilog("importance " + item.second.name +
-                 " i1 " + to_string(importance) +
-                 " i2 " + item.second.importance +
-                 " i3 " + result.res_map[item.second.name].importance);
 
             double importance_scaled = stod(result.res_map[name].trans_rate_scaled) * transfer_importance_share +
                                        stod(result.res_map[name].soc_rate_scaled) * social_importance_share;
@@ -608,7 +604,8 @@ namespace eosio {
                         continue;
 
                     string nl_symbol = "\n";
-                    if(from.find(nl_symbol) !=  std::string::npos)
+                    if(from.find(nl_symbol) !=  std::string::npos ||
+                            to.find(nl_symbol) != std::string::npos)
                         continue;
 
                     ownership_t ownership(from, to, block_height);
@@ -616,7 +613,6 @@ namespace eosio {
                     //ilog("makecontent " + from + " " + to);
 
                     std::string s1 = ownership.get_target();
-                    fix_symbol(s1);
                     std::vector<std::string> vec{block->timestamp.to_time_point(),std::to_string(block->block_num()),ownership.get_source(),s1,
                                                  ownership.get_name(),std::to_string(ownership.get_height()),std::to_string(ownership.get_weight()),
                                                  std::to_string(ownership.get_reverse_weight()),to_string_from_enum(ownership.get_source_type()),to_string_from_enum(ownership.get_target_type())};
@@ -631,7 +627,8 @@ namespace eosio {
                     auto interaction_type_id = object["interaction_type_id"].as_string();
 
                     string nl_symbol = "\n";
-                    if(from.find(nl_symbol) !=  std::string::npos)
+                    if(from.find(nl_symbol) !=  std::string::npos ||
+                            to.find(nl_symbol) != std::string::npos)
                         continue;
 
                     if(interaction_type_id == "2") {
@@ -640,7 +637,6 @@ namespace eosio {
                         //ilog("usertocont " + from + " " + to);
 
                         std::string s1 = upvote.get_target();
-                        fix_symbol(s1);
                         std::vector<std::string> vec{block->timestamp.to_time_point(),std::to_string(block->block_num()),upvote.get_source(),s1, upvote.get_name(),std::to_string(upvote.get_height()),std::to_string(upvote.get_weight()),
                                                      std::to_string(upvote.get_reverse_weight()),to_string_from_enum(upvote.get_source_type()),to_string_from_enum(upvote.get_target_type())};
                         social_activity_log.addDatainRow(vec.begin(),vec.end());
@@ -652,7 +648,6 @@ namespace eosio {
                         //ilog("usertocont " + from + " " + to);
 
                         std::string s1 = downvote.get_target();
-                        fix_symbol(s1);
                         std::vector<std::string> vec{block->timestamp.to_time_point(),std::to_string(block->block_num()),downvote.get_source(),s1,
                                                      downvote.get_name(),std::to_string(downvote.get_height()),std::to_string(downvote.get_weight()),
                                                      std::to_string(downvote.get_reverse_weight()),to_string_from_enum(downvote.get_source_type()),to_string_from_enum(downvote.get_target_type())};
@@ -666,10 +661,13 @@ namespace eosio {
                     auto to = object["content_id"].as_string();
                     ownership_t ownershiporg(from, to, block_height);
                     social_interactions.push_back(std::make_shared<ownership_t>(ownershiporg));
-                    //ilog("makecontorg " + from + " " + to);
+
+                    string nl_symbol = "\n";
+                    if(from.find(nl_symbol) !=  std::string::npos ||
+                       to.find(nl_symbol) != std::string::npos)
+                        continue;
 
                     std::string s1 = ownershiporg.get_target();
-                    fix_symbol(s1);
                     std::vector<std::string> vec{block->timestamp.to_time_point(),std::to_string(block->block_num()),ownershiporg.get_source(),s1,
                                                  ownershiporg.get_name(),std::to_string(ownershiporg.get_height()),std::to_string(ownershiporg.get_weight()),
                                                  std::to_string(ownershiporg.get_reverse_weight()),to_string_from_enum(ownershiporg.get_source_type()),to_string_from_enum(ownershiporg.get_target_type())};
