@@ -78,10 +78,10 @@ namespace eosio {
         string contract_activity = "uos.activity";
         string contract_calculators = "uos.calcs";
         std::set<chain::account_name> calculators;
-        string calculator_public_key = "EOS58BF677xSvHd2Q4JiE4Xj2vEc3tzjbJya1onCxa7vKvZeK3rwt";
-        string calculator_private_key = "5KGH33Z2zrBhWUmU3DmH9n1Jx2GL6H2Vwzk9AZLUPMJrMfWKgKr";
-        string calc_contract_public_key = "EOS8PHKG2Kkb5VYS4aqgQ2gLCDeXjs8hqtaVtUctmF7rMREkAMCra";
-        string calc_contract_private_key = "5JaMHGeTTypkni3cTSZA9mLi6MTBBi6avdb5BdCcT1DhREvLJuo";
+        string calculator_public_key = "";
+        string calculator_private_key = "";
+        string calc_contract_public_key = "";
+        string calc_contract_private_key = "";
 
         double social_importance_share = 0.1;
         double transfer_importance_share = 0.1;
@@ -864,8 +864,10 @@ namespace eosio {
                 ("contract-calculators", boost::program_options::value<std::string>()->default_value("uos.calcs"), "Contract account to get the calculators list")
                 ("calculator-name", boost::program_options::value<vector<string>>()->composing()->multitoken(),
                  "ID of calculator controlled by this node (e.g. calc1; may specify multiple times)")
-                ("calculator-public-key", boost::program_options::value<std::string>()->default_value("EOS58BF677xSvHd2Q4JiE4Xj2vEc3tzjbJya1onCxa7vKvZeK3rwt"), "")
-                ("calculator-private-key", boost::program_options::value<std::string>()->default_value("5KGH33Z2zrBhWUmU3DmH9n1Jx2GL6H2Vwzk9AZLUPMJrMfWKgKr"), "")
+                ("calculator-public-key", boost::program_options::value<std::string>()->default_value(""), "")
+                ("calculator-private-key", boost::program_options::value<std::string>()->default_value(""), "")
+                ("calc-contract-public-key", boost::program_options::value<std::string>()->default_value(""), "")
+                ("calc-contract-private-key", boost::program_options::value<std::string>()->default_value(""), "")
                 ("dump-calc-data", boost::program_options::value<bool>()->default_value(false), "Save the input and output data as *.csv files")
                 ;
     }
@@ -885,6 +887,8 @@ namespace eosio {
 
         my->calculator_public_key = options.at("calculator-public-key").as<std::string>();
         my->calculator_private_key = options.at("calculator-private-key").as<std::string>();
+        my->calc_contract_public_key = options.at("calc-contract-public-key").as<std::string>();
+        my->calc_contract_private_key = options.at("calc-contract-private-key").as<std::string>();
 
         my->dump_calc_data = options.at("dump-calc-data").as<bool>();
     }
