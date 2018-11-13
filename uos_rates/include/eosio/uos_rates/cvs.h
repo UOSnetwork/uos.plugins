@@ -14,6 +14,7 @@
 #include <boost/iostreams/filter/gzip.hpp>
 #include <boost/iostreams/copy.hpp>
 #include <boost/filesystem.hpp>
+//#include "/../../libraries/chain/transaction.cpp"
 
 /**
  * @brief
@@ -60,6 +61,8 @@ public:
         this->fileName = path + filename;
     }
 
+    string inline getPath (){return path;}
+
     string inline getFilename() { return fileName;};
 
     void inline settings(bool is_apart, bool is_write, string filename = "" )
@@ -104,8 +107,6 @@ void CSVWriter::addDatainRow(T first, T last)
     file.close();
 }
 
-
-
 std::string to_string_from_enum(node_type type) {
     switch (type) {
         case node_type::ACCOUNT: return "ACCOUNT";
@@ -115,23 +116,15 @@ std::string to_string_from_enum(node_type type) {
     return {};
 }
 
-inline uint64_t convert(std::string const& value) {
-    uint64_t result = 0;
-    char const* p = value.c_str();
-    char const* q = p + value.size();
-    while (p < q) {
-        result *= 10;
-        result += *(p++) - '0';
-    }
-    return result;
-}
-
 bool compressFile(std::string filename)
 {
     bfs::path pathObj(filename);
     if (pathObj.has_extension()) {
-        if (pathObj.extension().string() == "csv" /*&& !bfs::exists(bfs::change_extension(pathObj, "gzip").string())*/) {
-            std::ifstream inStream(filename, std::ios_base::in);
+        if (pathObj.extension().string() == ".csv" /*&& !bfs::exists(bfs::change_extension(pathObj, "gzip").string())*/) {
+            if(pathObj.extension().string() == ".gzip")
+                return false;
+
+            std::ifstream inStream(filename, std::ios_base::in| std::ios_base::binary);
             std::ofstream outStream(bfs::change_extension(pathObj, "gzip").string(), std::ios_base::out | std::ios_base::binary);
             bio::filtering_streambuf<bio::input> in;
             in.push(bio::gzip_compressor());
@@ -148,22 +141,27 @@ bool decompressFile(std::string filename)
 {
     bfs::path pathObj(filename);
     if (pathObj.has_extension()) {
-        if (pathObj.extension().string() == "gzip") {
-            std::ifstream inStream(filename, std::ios_base::in);
-            std::ofstream outStream(bfs::change_extension(filename, "csv").string(), std::ios_base::out | std::ios_base::binary);
+        if (pathObj.extension().string() == ".gzip" /*&& !bfs::exists(bfs::change_extension(pathObj, "gzip").string())*/) {
+            if(pathObj.extension().string() == ".csv")
+                return false;
+
+            std::ifstream inStream(filename, std::ios_base::in| std::ios_base::binary);
+            std::ofstream outStream(bfs::change_extension(pathObj, "csv").string(), std::ios_base::out | std::ios_base::binary);
             bio::filtering_streambuf<bio::input> in;
             in.push(bio::gzip_decompressor());
             in.push(inStream);
             bio::copy(in, outStream);
+            inStream.close();
+            outStream.close();
             return true;
         }
     }
-
 }
 
 std::vector<bfs::directory_entry> listFileinDir (std::string path = std::string(getenv("HOME")) + "/uos/calc_log/")
 {
-    std::vector<bfs::directory_entry> v; // To save the file names in a vector.
+    std::vector<bfs::directory_entry> v;
+    v.clear();
     if(bfs::is_directory(path))
     {
         copy(bfs::directory_iterator(path), bfs::directory_iterator(), back_inserter(v));
@@ -172,12 +170,22 @@ std::vector<bfs::directory_entry> listFileinDir (std::string path = std::string(
     return v;
 }
 
-void compressed()
+void compressed(std::vector<bfs::directory_entry> &v)
 {
-    std::vector<bfs::directory_entry> v= listFileinDir();
     for ( std::vector<bfs::directory_entry>::const_iterator it = v.begin(); it != v.end();  ++ it )
     {
         compressFile((*it).path().string());
+
+    }
+
+}
+
+void decompressed( std::vector<bfs::directory_entry> &v)
+{
+    for ( std::vector<bfs::directory_entry>::const_iterator it = v.begin(); it != v.end();  ++ it )
+    {
+        decompressFile((*it).path().string());
+
     }
 
 }
