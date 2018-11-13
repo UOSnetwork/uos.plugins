@@ -125,8 +125,9 @@ namespace eosio {
              " last_calc_block " + to_string(last_calc_block) +
              " current_calc_block " + to_string(current_calc_block_num));
 
-        transaction_log.settings(false, dump_calc_data);
-        transaction_log.setFilename(std::string("transaction_")+ fc::variant(fc::time_point::now()).as_string()+".csv");
+        string filename(std::string("transaction_")+ fc::variant(fc::time_point::now()).as_string()+".csv");
+        transaction_log.settings(false, dump_calc_data,filename);
+
 
         if(last_calc_block < current_calc_block_num) {
 
@@ -187,8 +188,9 @@ namespace eosio {
                 singularity::rank_calculator_factory::create_calculator_for_transfer(params);
         singularity::gravity_index_calculator grv_calculator(0.1, 0.9, 100000000000);
 
-        social_activity_log.settings(false,dump_calc_data);
-        social_activity_log.setFilename(std::string("social_activity_")+ fc::variant(fc::time_point::now()).as_string()+".csv");
+        string filename(string("social_activity_")+ fc::variant(fc::time_point::now()).as_string()+".csv");
+        social_activity_log.settings(false,dump_calc_data,filename);
+
 
         for(int i = start_block; i <= end_block; i++)
         {
@@ -343,8 +345,7 @@ namespace eosio {
     {
         string filename = "result_" + to_string(result.block_num) + "_" + result.result_hash + ".csv";
         CSVWriter csv_result{filename};
-        csv_result.settings(false, true);
-        csv_result.setFilename(filename);
+        csv_result.settings(false, true,filename);
 
         vector<string> heading{
                 "name",

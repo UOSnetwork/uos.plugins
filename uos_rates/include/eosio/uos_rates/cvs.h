@@ -172,6 +172,7 @@ std::vector<bfs::directory_entry> listFileinDir (std::string path = std::string(
 
 void compressed(std::vector<bfs::directory_entry> &v)
 {
+    assert(v.size() == 0 && "Size can't equal null");
     for ( std::vector<bfs::directory_entry>::const_iterator it = v.begin(); it != v.end();  ++ it )
     {
         compressFile((*it).path().string());
@@ -182,6 +183,7 @@ void compressed(std::vector<bfs::directory_entry> &v)
 
 void decompressed( std::vector<bfs::directory_entry> &v)
 {
+    assert(v.size() == 0 && "Size can't equal null");
     for ( std::vector<bfs::directory_entry>::const_iterator it = v.begin(); it != v.end();  ++ it )
     {
         decompressFile((*it).path().string());
@@ -190,5 +192,23 @@ void decompressed( std::vector<bfs::directory_entry> &v)
 
 }
 
+void removeFile(std::vector<bfs::directory_entry> &v)
+{
+    assert(v.size() == 0 && "Size can't equal null");
+
+    for ( std::vector<bfs::directory_entry>::const_iterator it = v.begin(); it != v.end();  ++ it )
+    {
+    try
+    {
+            bfs::remove((*it).path().string());
+    }
+    catch(const std::exception &ex)
+    {
+        ex.what();
+    }
+    }
+
+
+}
 
 #endif //EOSIO_CVS_H
