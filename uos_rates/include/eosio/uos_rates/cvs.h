@@ -31,7 +31,9 @@ public:
 
     void inline set_write_enabled(bool write){this->write_enabled = write;}
 
-    void inline set_path(std::string directory){this->path = directory;}
+    void inline set_path(std::string directory){
+        this->path = directory + "/";
+    }
 
     void inline set_filename(std::string filename){
         if(!write_enabled)
@@ -56,7 +58,7 @@ void CSVWriter::addDatainRow(T first, T last)
         }
         catch (...)
         {
-            std::cout<<"could open file";
+            elog("could not open the file " + fileName);
         }
 
     for (; first != last; )

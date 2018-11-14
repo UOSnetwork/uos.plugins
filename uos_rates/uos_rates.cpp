@@ -69,7 +69,7 @@ namespace eosio {
 
         friend class uos_rates;
 
-        CSVWriter social_activity_log{"social_activity.csv"},transaction_log{"transaction.csv"};
+        CSVWriter social_activity_log,transfer_activity_log;
 
     private:
 
@@ -93,6 +93,7 @@ namespace eosio {
         const uint8_t blocks_per_second = 2;
 
         bool dump_calc_data = false;
+        bfs::path dump_dir;
 
         std::vector<std::shared_ptr<singularity::relation_t>> my_transfer_interactions;
         uint64_t last_calc_block = 0;
@@ -124,9 +125,6 @@ namespace eosio {
         ilog(" irreversible block " + to_string(irr_block_num) +
              " last_calc_block " + to_string(last_calc_block) +
              " current_calc_block " + to_string(current_calc_block_num));
-
-        transaction_log.set_write_enabled(dump_calc_data);
-        transaction_log.set_filename(std::string("transaction_")+ fc::variant(fc::time_point::now()).as_string()+".csv");
 
         if(last_calc_block < current_calc_block_num) {
 
@@ -187,7 +185,12 @@ namespace eosio {
                 singularity::rank_calculator_factory::create_calculator_for_transfer(params);
         singularity::gravity_index_calculator grv_calculator(0.1, 0.9, 100000000000);
 
+        transfer_activity_log.set_write_enabled(dump_calc_data);
+        transfer_activity_log.set_path(dump_dir.string());
+        transfer_activity_log.set_filename(std::string("transaction_")+ fc::variant(fc::time_point::now()).as_string()+".csv");
+
         social_activity_log.set_write_enabled(dump_calc_data);
+        social_activity_log.set_path(dump_dir.string());
         social_activity_log.set_filename(std::string("social_activity_")+ fc::variant(fc::time_point::now()).as_string()+".csv");
 
         for(int i = start_block; i <= end_block; i++)
@@ -344,6 +347,7 @@ namespace eosio {
         string filename = "result_" + to_string(result.block_num) + "_" + result.result_hash + ".csv";
         CSVWriter csv_result{filename};
         csv_result.set_write_enabled(true);
+        csv_result.set_path(dump_dir.string());
         csv_result.set_filename(filename);
 
         vector<string> heading{
@@ -568,7 +572,7 @@ namespace eosio {
 
                         std::vector<std::string> vec{action.account.to_string(), action.name.to_string(),
                                                      from,to,std::to_string(quantity),memo, std::to_string(block->block_num()), block->timestamp.to_time_point()};
-                        transaction_log.addDatainRow(vec.begin(), vec.end());
+                        transfer_activity_log.addDatainRow(vec.begin(), vec.end());
                         vec.clear();
                     }
                 }
@@ -887,6 +891,9 @@ namespace eosio {
         my->calc_contract_private_key = options.at("calc-contract-private-key").as<std::string>();
 
         my->dump_calc_data = options.at("dump-calc-data").as<bool>();
+
+        auto dump_name = bfs::path("dump");
+        my->dump_dir = app().data_dir() / dump_name;
     }
 
     void uos_rates::plugin_startup() {
