@@ -40,7 +40,7 @@ namespace eosio {
 
         vector<std::string> get_all_accounts();
 
-        std::vector<std::shared_ptr<singularity::relation_t>> parse_transactions_from_block(
+        vector<std::shared_ptr<singularity::relation_t>> parse_transactions_from_block(
                 eosio::chain::signed_block_ptr block, uint32_t current_calc_block);
 
         void run_transaction(
@@ -83,6 +83,7 @@ namespace eosio {
         string calc_contract_public_key = "";
         string calc_contract_private_key = "";
 
+
         double social_importance_share = 0.1;
         double transfer_importance_share = 0.1;
         double stake_importance_share = 1.0 - social_importance_share - transfer_importance_share;
@@ -95,7 +96,7 @@ namespace eosio {
         bool dump_calc_data = false;
         bfs::path dump_dir;
 
-        std::vector<std::shared_ptr<singularity::relation_t>> my_transfer_interactions;
+        vector<std::shared_ptr<singularity::relation_t>> my_transfer_interactions;
         uint64_t last_calc_block = 0;
         result_set result = result_set(0); //TODO use pointer
 
@@ -212,10 +213,10 @@ namespace eosio {
             }
         }
 
-        std::map<singularity::node_type, string> node_type_names;
-        node_type_names[singularity::node_type::ACCOUNT] = "ACCOUNT";
-        node_type_names[singularity::node_type::CONTENT] = "CONTENT";
-        node_type_names[singularity::node_type::ORGANIZATION] = "ORGANIZATION";
+        std::map<node_type, string> node_type_names;
+        node_type_names[node_type::ACCOUNT] = "ACCOUNT";
+        node_type_names[node_type::CONTENT] = "CONTENT";
+        node_type_names[node_type::ORGANIZATION] = "ORGANIZATION";
 
         auto social_rates = social_calculator->calculate();
         auto transfer_rates = transfer_calculator->calculate();
@@ -263,7 +264,7 @@ namespace eosio {
             }
 
             auto scaled_map = grv_calculator.scale_activity_index(*item_map);
-            std::vector<std::string> vec;
+            vector<std::string> vec;
 
             for (auto item : scaled_map) {
                 string name = item.first;
@@ -423,7 +424,7 @@ namespace eosio {
         ilog("consensus_minimum " + std::to_string(consensus_minimum));
 
         //get list of reports for last_calc_block
-        std::vector<fc::variant> reports;
+        vector<fc::variant> reports;
         chain_apis::read_only::get_table_rows_params get_reps;
         get_reps.code = eosio::chain::name(contract_calculators);
         get_reps.scope = contract_calculators;
@@ -506,7 +507,7 @@ namespace eosio {
         const auto &database = cc.db();
         typedef typename chainbase::get_index_type< chain::account_object >::type index_type;
         const auto &table = database.get_index<index_type,chain::by_name>();
-        std::vector <std::string> account_name;
+        vector <std::string> account_name;
         for(chain::account_object item: table){
            // ilog(c_fail + "ACCOUNTS:" + item.name.to_string()+ c_clear);
             account_name.push_back(item.name.to_string());
@@ -532,11 +533,11 @@ namespace eosio {
 
     }
 
-    std::vector<std::shared_ptr<singularity::relation_t>> uos_rates_impl::parse_transactions_from_block(
+    vector<std::shared_ptr<singularity::relation_t>> uos_rates_impl::parse_transactions_from_block(
             eosio::chain::signed_block_ptr block, uint32_t current_calc_block){
 
-        std::vector<std::shared_ptr<singularity::relation_t>> social_interactions;
-        std::vector<std::shared_ptr<singularity::relation_t>> transfer_interactions;
+        vector<std::shared_ptr<singularity::relation_t>> social_interactions;
+        vector<std::shared_ptr<singularity::relation_t>> transfer_interactions;
 
         auto ro_api = app().get_plugin<chain_plugin>().get_read_only_api();
 
@@ -570,7 +571,7 @@ namespace eosio {
                         transfer_interactions.push_back(std::make_shared<transaction_t>(transfer));
                          my_transfer_interactions = transfer_interactions;
 
-                        std::vector<std::string> vec{action.account.to_string(), action.name.to_string(),
+                        vector<std::string> vec{action.account.to_string(), action.name.to_string(),
                                                      from,to,std::to_string(quantity),memo, std::to_string(block->block_num()), block->timestamp.to_time_point()};
                         transfer_activity_log.addDatainRow(vec.begin(), vec.end());
                         vec.clear();
@@ -615,7 +616,7 @@ namespace eosio {
                     //ilog("makecontent " + from + " " + to);
 
                     std::string s1 = ownership.get_target();
-                    std::vector<std::string> vec{block->timestamp.to_time_point(),std::to_string(block->block_num()),ownership.get_source(),s1,
+                    vector<std::string> vec{block->timestamp.to_time_point(),std::to_string(block->block_num()),ownership.get_source(),s1,
                                                  ownership.get_name(),std::to_string(ownership.get_height()),std::to_string(ownership.get_weight()),
                                                  std::to_string(ownership.get_reverse_weight()),to_string_from_enum(ownership.get_source_type()),to_string_from_enum(ownership.get_target_type())};
                     social_activity_log.addDatainRow(vec.begin(),vec.end());
@@ -639,7 +640,7 @@ namespace eosio {
                         //ilog("usertocont " + from + " " + to);
 
                         std::string s1 = upvote.get_target();
-                        std::vector<std::string> vec{block->timestamp.to_time_point(),std::to_string(block->block_num()),upvote.get_source(),s1, upvote.get_name(),std::to_string(upvote.get_height()),std::to_string(upvote.get_weight()),
+                        vector<std::string> vec{block->timestamp.to_time_point(),std::to_string(block->block_num()),upvote.get_source(),s1, upvote.get_name(),std::to_string(upvote.get_height()),std::to_string(upvote.get_weight()),
                                                      std::to_string(upvote.get_reverse_weight()),to_string_from_enum(upvote.get_source_type()),to_string_from_enum(upvote.get_target_type())};
                         social_activity_log.addDatainRow(vec.begin(),vec.end());
                         vec.clear();
@@ -650,7 +651,7 @@ namespace eosio {
                         //ilog("usertocont " + from + " " + to);
 
                         std::string s1 = downvote.get_target();
-                        std::vector<std::string> vec{block->timestamp.to_time_point(),std::to_string(block->block_num()),downvote.get_source(),s1,
+                        vector<std::string> vec{block->timestamp.to_time_point(),std::to_string(block->block_num()),downvote.get_source(),s1,
                                                      downvote.get_name(),std::to_string(downvote.get_height()),std::to_string(downvote.get_weight()),
                                                      std::to_string(downvote.get_reverse_weight()),to_string_from_enum(downvote.get_source_type()),to_string_from_enum(downvote.get_target_type())};
                         social_activity_log.addDatainRow(vec.begin(),vec.end());
@@ -670,7 +671,7 @@ namespace eosio {
                         continue;
 
                     std::string s1 = ownershiporg.get_target();
-                    std::vector<std::string> vec{block->timestamp.to_time_point(),std::to_string(block->block_num()),ownershiporg.get_source(),s1,
+                    vector<std::string> vec{block->timestamp.to_time_point(),std::to_string(block->block_num()),ownershiporg.get_source(),s1,
                                                  ownershiporg.get_name(),std::to_string(ownershiporg.get_height()),std::to_string(ownershiporg.get_weight()),
                                                  std::to_string(ownershiporg.get_reverse_weight()),to_string_from_enum(ownershiporg.get_source_type()),to_string_from_enum(ownershiporg.get_target_type())};
                     social_activity_log.addDatainRow(vec.begin(),vec.end());
@@ -881,7 +882,7 @@ namespace eosio {
         my->contract_calculators = options.at("contract-calculators").as<std::string>();
 
         if( options.count("calculator-name") ) {
-            const std::vector<std::string>& ops = options["calculator-name"].as<std::vector<std::string>>();
+            const vector<std::string>& ops = options["calculator-name"].as<vector<std::string>>();
             std::copy(ops.begin(), ops.end(), std::inserter(my->calculators, my->calculators.end()));
         }
 
