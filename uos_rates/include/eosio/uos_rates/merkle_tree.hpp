@@ -43,7 +43,7 @@ namespace uos {
             return 0;
 
         for ( auto account_pair : accounts ) {
-            sum[ account_pair.first ].first = to_string( account_pair.second );
+            sum[ account_pair.first ].first = std::to_string( account_pair.second );
         }
         counted = false;
         return sum.size();
