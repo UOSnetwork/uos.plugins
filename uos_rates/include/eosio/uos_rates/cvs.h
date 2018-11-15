@@ -9,6 +9,13 @@
 #include <iterator>
 #include <fstream>
 
+#include <fstream>
+#include <iostream>
+#include <string>
+#include <vector>
+#include <assert.h>
+#include <stdlib.h>
+
 
 #include <boost/iostreams/filtering_stream.hpp>
 #include <boost/iostreams/filter/zlib.hpp>
@@ -51,7 +58,7 @@ public:
     }
     string inline getPath (){return path;}
 
-    string inline getFilename() { return fileName;};
+    string inline getFilename() { return fileName;}
 
     void inline set_filename(string filename){
         if(!write_enabled)
@@ -90,7 +97,7 @@ void CSVWriter::addDatainRow(T first, T last)
     file.close();
 }
 
-std::string to_string_from_enum(node_type type) {
+string to_string_from_enum(node_type type) {
     switch (type) {
         case node_type::ACCOUNT: return "ACCOUNT";
         case node_type::CONTENT: return "CONTENT";
@@ -98,6 +105,73 @@ std::string to_string_from_enum(node_type type) {
     }
     return {};
 }
+
+    class CSVRead
+    {
+        char delimeter;
+        string filename;
+    public:
+        vector<vector<string>> buffer;
+
+        CSVRead(string fn,char delm = ';') :filename(fn),delimeter(delm)
+        {}
+        string const& operator[](std::size_t index) const
+        {
+            return m_data[index];
+        }
+        std::size_t size() const
+        {
+            return m_data.size();
+        }
+        void readNextRow(std::istream& str)
+        {
+            string line;
+            std::getline(str, line);
+            std::stringstream   lineStream(line);
+            string cell;
+
+            m_data.clear();
+            while(std::getline(lineStream, cell, delimeter))
+            {
+                m_data.push_back(cell);
+            }
+
+            if (!lineStream && cell.empty())
+            {
+                m_data.push_back("");
+            }
+
+        }
+        string inline getFilename(){ return filename;}
+    private:
+        vector<string> m_data;
+    };
+    std::istream& operator>>(std::istream& str, CSVRead& data)
+    {
+        data.readNextRow(str);
+        return str;
+    }
+
+    void readLine(CSVRead& row, uint8_t count_columns = 7)
+    {
+        string filename = row.getFilename();
+    if (!bfs::exists( filename))
+    {
+        elog("File not found " + filename);
+        return;
+    }
+
+        std::ifstream file(filename);
+        while(file >> row)
+        {
+            vector<string > crows;
+            for(uint8_t i = 0; i < count_columns; i++) {
+                crows.push_back(row[i]);
+            }
+            row.buffer.push_back(crows);
+        }
+    }
+
 bool compressFile(string filename)
 {
     bfs::path pathObj(filename);
@@ -154,7 +228,7 @@ std::vector<bfs::directory_entry> listFileinDir (string path = string(getenv("HO
 void compressed(std::vector<bfs::directory_entry> &v)
 {
     assert(v.size() == 0 && "Size can't equal null");
-    for ( std::vector<bfs::directory_entry>::const_iterator it = v.begin(); it != v.end();  ++ it )
+    for ( auto it = v.begin(); it != v.end();  ++ it )
     {
         compressFile((*it).path().string());
 
@@ -165,7 +239,7 @@ void compressed(std::vector<bfs::directory_entry> &v)
 void decompressed( std::vector<bfs::directory_entry> &v)
 {
     assert(v.size() == 0 && "Size can't equal null");
-    for ( std::vector<bfs::directory_entry>::const_iterator it = v.begin(); it != v.end();  ++ it )
+    for ( auto it = v.begin(); it != v.end();  ++ it )
     {
         decompressFile((*it).path().string());
 
@@ -173,21 +247,22 @@ void decompressed( std::vector<bfs::directory_entry> &v)
 
 }
 
-void removeFile(std::vector<bfs::directory_entry> &v)
-{
-    assert(v.size() == 0 && "Size can't equal null");
-
-    for ( std::vector<bfs::directory_entry>::const_iterator it = v.begin(); it != v.end();  ++ it )
+    void removeFile(std::vector<bfs::directory_entry> &v)
     {
-        try
+        assert(v.size() == 0 && "Size can't equal null");
+
+        for (auto it = v.begin(); it != v.end();  ++ it )
         {
-            bfs::remove((*it).path().string());
-        }
-        catch(const std::exception &ex)
-        {
-            ex.what();
+            try
+            {
+                bfs::remove((*it).path().string());
+            }
+            catch(const std::exception &ex)
+            {
+                ex.what();
+            }
         }
     }
-}
+
 }
 #endif //EOSIO_CVS_H
