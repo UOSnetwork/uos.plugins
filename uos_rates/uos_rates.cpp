@@ -603,7 +603,6 @@ namespace eosio {
                     auto from = object["acc"].as_string();
                     auto to = object["content_id"].as_string();
                     auto content_type_id = object["content_type_id"].as_string();
-                    if(content_type_id == "5")
                     if(content_type_id == "4")
                         continue;
 
