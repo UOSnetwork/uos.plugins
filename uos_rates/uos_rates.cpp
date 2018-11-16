@@ -25,6 +25,8 @@ namespace eosio {
 
         void irreversible_block_catcher(const chain::block_state_ptr& bsp);
 
+        result_set get_result_stub(uint64_t current_calc_block);
+
         void run_trx_queue(uint64_t num);
 
         void calculate_rates(uint32_t current_calc_block_num);
@@ -166,7 +168,19 @@ namespace eosio {
         ilog("waiting for the next calculation block " + std::to_string(current_calc_block_num + period));
     }
 
-    void uos_rates_impl::calculate_rates(uint32_t current_calc_block_num){
+    result_set uos_rates_impl::get_result_stub(uint64_t current_calc_block){
+        //TODO check if there is consensus hash in the consensus table
+
+        //TODO get the results for this hash from the file
+
+        //TODO request the results file from other nodes
+
+        //if there is no previous result, create a new one
+        auto result = result_set(current_calc_block);
+        return result;
+    }
+
+    void uos_rates_impl::calculate_rates(uint32_t current_calc_block_num) {
         int32_t end_block = current_calc_block_num;
         int32_t start_block = end_block - window + 1;
         if (start_block < 1)
@@ -188,14 +202,15 @@ namespace eosio {
 
         transfer_activity_log.set_write_enabled(dump_calc_data);
         transfer_activity_log.set_path(dump_dir.string());
-        transfer_activity_log.set_filename(std::string("transaction_")+ fc::variant(fc::time_point::now()).as_string()+".csv");
+        transfer_activity_log.set_filename(
+                std::string("transaction_") + fc::variant(fc::time_point::now()).as_string() + ".csv");
 
         social_activity_log.set_write_enabled(dump_calc_data);
         social_activity_log.set_path(dump_dir.string());
-        social_activity_log.set_filename(std::string("social_activity_")+ fc::variant(fc::time_point::now()).as_string()+".csv");
+        social_activity_log.set_filename(
+                std::string("social_activity_") + fc::variant(fc::time_point::now()).as_string() + ".csv");
 
-        for(int i = start_block; i <= end_block; i++)
-        {
+        for (int i = start_block; i <= end_block; i++) {
             if (i % 1000000 == 0)
                 ilog("block " + to_string(i));
             try {
@@ -204,11 +219,10 @@ namespace eosio {
                 social_calculator->add_block(social_interactions);
                 transfer_calculator->add_block(my_transfer_interactions);
             }
-            catch(std::exception e){
+            catch (std::exception e) {
                 elog(e.what());
             }
-            catch(...)
-            {
+            catch (...) {
                 elog("Error on parsing block " + std::to_string(i));
             }
         }
@@ -222,14 +236,12 @@ namespace eosio {
         auto transfer_rates = transfer_calculator->calculate();
 
         ilog("social_rates.size()" + std::to_string(social_rates.size()) +
-        " transfer_rates.size()" + std::to_string(transfer_rates.size()));
+             " transfer_rates.size()" + std::to_string(transfer_rates.size()));
 
-        result = result_set(current_calc_block_num);
-
+        result = get_result_stub(current_calc_block_num);
 
         //set results for social rate");
-        for (auto group : social_rates)
-        {
+        for (auto group : social_rates) {
             auto group_name = node_type_names[group.first];
             auto item_map = group.second;
             for (auto item : *item_map) {
@@ -251,8 +263,7 @@ namespace eosio {
         }
 
         //set results for transfer rates");
-        for (auto group : transfer_rates)
-        {
+        for (auto group : transfer_rates) {
             auto group_name = node_type_names[group.first];
             auto item_map = group.second;
             for (auto item : *item_map) {
@@ -275,10 +286,9 @@ namespace eosio {
         }
 
         //set results for importance accounts");
-        for (auto item : result.res_map)
-        {
+        for (auto item : result.res_map) {
             auto name = item.second.name;
-            if(item.second.type != "ACCOUNT")
+            if (item.second.type != "ACCOUNT")
                 continue;
 
             double importance = stod(result.res_map[name].trans_rate) * transfer_importance_share +
@@ -297,33 +307,31 @@ namespace eosio {
         }
 
         //set results for emission only for accounts");
-        try
-        {
-            double total_emission = initial_token_supply
-                                    * yearly_emission_percent / 100
-                                    / seconds_per_year
-                                    * period / blocks_per_second;
+        double total_emission = initial_token_supply
+                                * yearly_emission_percent / 100
+                                / seconds_per_year
+                                * period / blocks_per_second;
 
-            ilog("total_emission " + to_string(total_emission));
-            for (auto item : result.res_map) {
-                auto name = item.second.name;
+        ilog("total_emission " + to_string(total_emission));
+        for (auto item : result.res_map) {
+            auto name = item.second.name;
 
-                if (item.second.type != "ACCOUNT")
-                    continue;
+            if (item.second.type != "ACCOUNT")
+                continue;
 
-                double emission = total_emission * stod(result.res_map[name].importance);
-                stringstream ss;
-                ss << fixed << setprecision(4) << emission;
-                result.res_map[name].current_emission = ss.str();
-            }
-        }
-        catch(std::exception e){
-            elog(e.what());
+            double emission = total_emission * stod(result.res_map[name].importance);
+            double cumulative_emission = stod(result.res_map[name].prev_cumulative_emission) + emission;
+            stringstream ss;
+            ss << fixed << setprecision(4) << emission;
+            result.res_map[name].current_emission = ss.str();
+            ss.str("");
+            ss << cumulative_emission;
+            result.res_map[name].current_cumulative_emission = ss.str();
         }
 
         //calculate hash");
-        string str_result =  std::to_string(result.block_num) + ";";
-        for(auto item : result.res_map)
+        string str_result = std::to_string(result.block_num) + ";";
+        for (auto item : result.res_map)
             str_result += item.second.name + ";" + item.second.current_emission + ";";
         result.result_hash = fc::sha256::hash(str_result).str();
     }
