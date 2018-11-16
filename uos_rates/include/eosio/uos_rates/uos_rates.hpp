@@ -30,15 +30,15 @@ namespace eosio {
     public:
         string name;
         string type;
-        string soc_rate;
-        string soc_rate_scaled;
-        string trans_rate;
-        string trans_rate_scaled;
-        string importance;
-        string importance_scaled;
-        string prev_cumulative_emission;
-        string current_emission;
-        string current_cumulative_emission;
+        string soc_rate = "0";
+        string soc_rate_scaled = "0";
+        string trans_rate = "0";
+        string trans_rate_scaled = "0";
+        string importance = "0";
+        string importance_scaled = "0";
+        string prev_cumulative_emission = "0";
+        string current_emission = "0";
+        string current_cumulative_emission = "0";
     };
 
     class result_set

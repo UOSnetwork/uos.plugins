@@ -274,27 +274,12 @@ namespace eosio {
             }
         }
 
-        //get all accounts");
-        auto account_list = get_all_accounts();
-
-        //set results for importance (only for real accounts)");
+        //set results for importance accounts");
         for (auto item : result.res_map)
         {
             auto name = item.second.name;
-            if(find(account_list.begin(), account_list.end(), name) == account_list.end())
+            if(item.second.type != "ACCOUNT")
                 continue;
-
-            if(result.res_map[name].soc_rate.empty())
-                result.res_map[name].soc_rate = "0";
-
-            if(result.res_map[name].soc_rate_scaled.empty())
-                result.res_map[name].soc_rate_scaled = "0";
-
-            if(result.res_map[name].trans_rate.empty())
-                result.res_map[name].trans_rate = "0";
-
-            if(result.res_map[name].trans_rate_scaled.empty())
-                result.res_map[name].trans_rate_scaled = "0";
 
             double importance = stod(result.res_map[name].trans_rate) * transfer_importance_share +
                                 stod(result.res_map[name].soc_rate) * social_importance_share;
@@ -311,7 +296,7 @@ namespace eosio {
             result.res_map[name].importance_scaled = ss.str();
         }
 
-        //set results for emission (only for real accounts)");
+        //set results for emission only for accounts");
         try
         {
             double total_emission = initial_token_supply
@@ -323,7 +308,7 @@ namespace eosio {
             for (auto item : result.res_map) {
                 auto name = item.second.name;
 
-                if (find(account_list.begin(), account_list.end(), name) == account_list.end())
+                if (item.second.type != "ACCOUNT")
                     continue;
 
                 double emission = total_emission * stod(result.res_map[name].importance);
@@ -517,9 +502,11 @@ namespace eosio {
 
     void uos_rates_impl::set_emission()
     {
+        auto account_list = get_all_accounts();
+
         for(auto item : result.res_map) {
-            //only for non-empty emission values
-            if(item.second.current_emission.empty())
+            //only for real accounts
+            if(find(account_list.begin(), account_list.end(), item.second.name) == account_list.end())
                 continue;
 
             fc::mutable_variant_object data;
@@ -549,7 +536,7 @@ namespace eosio {
             for (auto action : actions) {
 
                 if (action.account == N(eosio.token)) {
-                    ilog("TRANSFER FOUND BLOCK:" + std::to_string(block->block_num()) + action.name.to_string());
+                    //ilog("TRANSFER FOUND BLOCK:" + std::to_string(block->block_num()) + action.name.to_string());
 
                     if (action.name == N(transfer)) {
 
