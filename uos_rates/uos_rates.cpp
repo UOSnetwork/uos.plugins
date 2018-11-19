@@ -169,18 +169,55 @@ namespace eosio {
     }
 
     result_set uos_rates_impl::get_result_stub(uint64_t current_calc_block){
-        //TODO check if there is consensus hash in the consensus table
 
-        //TODO get the results for this hash from the file
-
-        //TODO request the results file from other nodes
+        //check if there is consensus hash in the consensus table
+        auto ro_api = app().get_plugin<chain_plugin>().get_read_only_api();
+        chain_apis::read_only::get_table_rows_params get_cons;
+        get_cons.code = eosio::chain::name(contract_calculators);
+        get_cons.scope = contract_calculators;
+        get_cons.table = N(consensus);
+        get_cons.key_type = chain_apis::i64;
+        get_cons.index_position = "second";
+        get_cons.limit = 1;
+        get_cons.json = true;
+        auto cons_rows = ro_api.get_table_rows(get_cons);
 
         //if there is no previous result, create a new one
-        auto result = result_set(current_calc_block);
-        return result;
+        if(cons_rows.rows.size() == 0)
+            return result_set(current_calc_block);
+
+        string block_num_str = cons_rows.rows[0]["block_num"].as_string();
+        string hash_str = cons_rows.rows[0]["hash"].as_string();
+
+        //get the results for this hash from the file
+        string filename = "result_" + block_num_str + "_" + hash_str + ".csv";
+        auto csv = CSVRead(dump_dir.string() + "/" + filename);
+        readLine(csv, 11);
+
+        //TODO if file not found request the results file from other nodes
+
+        auto new_result = result_set(current_calc_block);
+        for(auto i = 1; i < csv.buffer.size(); i++){
+
+            string name = csv.buffer[i][0];
+            string type = csv.buffer[i][1];
+            string cumulative_emission = csv.buffer[i][10];
+
+            //skip all non-zero emission
+            if(cumulative_emission == "0")
+                continue;
+
+            new_result.res_map[name].name = name;
+            new_result.res_map[name].type = type;
+            new_result.res_map[name].prev_cumulative_emission = cumulative_emission;
+        }
+
+        return new_result;
     }
 
     void uos_rates_impl::calculate_rates(uint32_t current_calc_block_num) {
+        result = get_result_stub(current_calc_block_num);
+
         int32_t end_block = current_calc_block_num;
         int32_t start_block = end_block - window + 1;
         if (start_block < 1)
@@ -238,7 +275,7 @@ namespace eosio {
         ilog("social_rates.size()" + std::to_string(social_rates.size()) +
              " transfer_rates.size()" + std::to_string(transfer_rates.size()));
 
-        result = get_result_stub(current_calc_block_num);
+
 
         //set results for social rate");
         for (auto group : social_rates) {
