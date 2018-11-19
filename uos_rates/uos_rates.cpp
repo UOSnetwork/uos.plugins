@@ -1,5 +1,6 @@
 #include <eosio/uos_rates/uos_rates.hpp>
 #include <eosio/uos_rates/transaction_queqe.hpp>
+#include <eosio/chain/asset.hpp>
 #include <eosio/chain/exceptions.hpp>
 #include <eosio/chain_api_plugin/chain_api_plugin.hpp>
 #include <eosio/http_plugin/http_plugin.hpp>
@@ -24,6 +25,8 @@ namespace eosio {
     public:
 
         void irreversible_block_catcher(const chain::block_state_ptr& bsp);
+
+        void save_userres();
 
         result_set get_result_stub(uint64_t current_calc_block);
 
@@ -166,6 +169,48 @@ namespace eosio {
         }
 
         ilog("waiting for the next calculation block " + std::to_string(current_calc_block_num + period));
+    }
+
+    void uos_rates_impl::save_userres() {
+
+        string filename = "userresorces.csv";
+        CSVWriter csv_result_userres{filename};
+        csv_result_userres.settings(true, dump_dir.string(), filename);
+        if(bfs::exists(csv_result_userres.getFilename()))
+            bfs::remove(csv_result_userres.getFilename());
+
+        vector<string> heading{
+                "name",
+                "cpu_weight",
+                "net_weight"
+        };
+
+        csv_result_userres.addDatainRow(heading.begin(), heading.end());
+
+        chain::controller &cc = app().get_plugin<chain_plugin>().chain();
+        auto ro_api = app().get_plugin<chain_plugin>().get_read_only_api();
+        chain_apis::read_only::get_account_params params;
+
+        auto account_list = get_all_accounts();
+        for (auto const &acc_name:  account_list){
+            eosio::chain::name bn = acc_name;
+            params.account_name = bn;
+            asset val;
+            auto core_symbol = val.symbol_name();
+            try {
+                auto users_info = ro_api.get_account(params);
+                elog("Users resourses");
+                auto cpu_weight = to_string(users_info.cpu_weight);
+                auto net_weight = to_string(users_info.net_weight);
+                vector<string> result = {acc_name, cpu_weight, net_weight};
+                csv_result_userres.addDatainRow(result.begin(), result.end());
+            }
+            catch (exception &ex)
+            {
+                elog(ex.what());
+            }
+
+        }
     }
 
     result_set uos_rates_impl::get_result_stub(uint64_t current_calc_block){

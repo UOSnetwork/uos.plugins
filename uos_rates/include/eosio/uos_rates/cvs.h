@@ -63,9 +63,17 @@ public:
     void inline set_filename(string filename){
         if(!write_enabled)
             return;
-        if ( !boost::filesystem::exists( path ) )
-            boost::filesystem::create_directories(path);
+        if ( !bfs::exists( path ) )
+            bfs::create_directories(path);
         this->fileName = path + filename;
+    }
+    void inline settings(bool is_write ="false",string path = " ", string filename = " ")
+    {
+        write_enabled = is_write;
+        if(!path.empty())
+            set_path(path);
+        if(!filename.empty())
+            set_filename(filename);
     }
 };
 
