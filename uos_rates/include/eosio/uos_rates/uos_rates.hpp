@@ -20,6 +20,7 @@ namespace eosio {
         void plugin_shutdown();
 
         void irreversible_block_catcher(const chain::block_state_ptr& bst);
+        void accepted_block_catcher(const chain::block_state_ptr& ast);
 
     private:
         std::unique_ptr<class uos_rates_impl> my;

@@ -1,6 +1,7 @@
 #include <eosio/uos_rates/uos_rates.hpp>
 #include <eosio/uos_rates/transaction_queqe.hpp>
 #include <eosio/uos_rates/merkle_tree.hpp>
+#include <eosio/chain/asset.hpp>
 #include <eosio/chain/exceptions.hpp>
 #include <eosio/chain_api_plugin/chain_api_plugin.hpp>
 #include <eosio/http_plugin/http_plugin.hpp>
@@ -25,6 +26,10 @@ namespace eosio {
     public:
 
         void irreversible_block_catcher(const chain::block_state_ptr& bsp);
+
+        void accepted_block_catcher(const eosio::chain::block_state_ptr& asp);
+
+        void save_userres(uint current_head_block_number);
 
         result_set get_result_stub(uint64_t current_calc_block);
 
@@ -167,6 +172,67 @@ namespace eosio {
         }
 
         ilog("waiting for the next calculation block " + std::to_string(current_calc_block_num + period));
+    }
+
+    void uos_rates_impl::accepted_block_catcher(const eosio::chain::block_state_ptr &asp)
+    {
+
+        chain::controller &cc = app().get_plugin<chain_plugin>().chain();
+        auto ro_api = app().get_plugin<chain_plugin>().get_read_only_api();
+        chain_apis::read_only::get_block_params t;
+        auto current_head_block_number = cc.fork_db_head_block_num();
+
+        auto accept_block_id = asp->block->id();
+        auto accept_block_num = asp->block->num_from_id(accept_block_id);
+
+        auto tt = current_head_block_number % period;
+        if(tt == 0 && current_head_block_number == accept_block_num )
+            save_userres(current_head_block_number );
+//        elog(" accepted block " + to_string(acc_block_num));
+
+    }
+
+    void uos_rates_impl::save_userres(uint current_head_block_number) {
+
+        string current_filename = "snapshot_" + to_string(current_head_block_number) + ".csv";
+        bfs::path prev_filename ( dump_dir.string()+"/snapshot_" + to_string(current_head_block_number - period) + ".csv");
+//        elog("Prevision filename snapshot" + prev_filename.string());
+        if(bfs::exists(prev_filename))
+            bfs::remove(prev_filename);
+        CSVWriter csv_result_userres{current_filename};
+        csv_result_userres.settings(true, dump_dir.string(), current_filename);
+
+        vector<string> heading{
+                "name",
+                "cpu_weight",
+                "net_weight"
+        };
+
+        csv_result_userres.addDatainRow(heading.begin(), heading.end());
+
+        chain::controller &cc = app().get_plugin<chain_plugin>().chain();
+        auto ro_api = app().get_plugin<chain_plugin>().get_read_only_api();
+        chain_apis::read_only::get_account_params params;
+
+        auto account_list = get_all_accounts();
+        for (auto const &acc_name:  account_list){
+            eosio::chain::name bn = acc_name;
+            params.account_name = bn;
+            asset val;
+            auto core_symbol = val.symbol_name();
+            try {
+                auto users_info = ro_api.get_account(params);
+                auto cpu_weight = to_string(users_info.cpu_weight);
+                auto net_weight = to_string(users_info.net_weight);
+                vector<string> result = {acc_name, cpu_weight, net_weight};
+                csv_result_userres.addDatainRow(result.begin(), result.end());
+            }
+            catch (exception &ex)
+            {
+                elog(ex.what());
+            }
+
+        }
     }
 
     result_set uos_rates_impl::get_result_stub(uint64_t current_calc_block){
@@ -950,6 +1016,11 @@ namespace eosio {
             my->irreversible_block_catcher(bsp);
         });
 
+        eosio::chain::controller &ac_block = app().get_plugin<eosio::chain_plugin>().chain();
+        ac_block.accepted_block.connect([this](const auto& asp){
+            my->accepted_block_catcher(asp);
+        });
+
     }
 
     void uos_rates::plugin_shutdown() {
@@ -957,5 +1028,7 @@ namespace eosio {
     }
 
     void uos_rates::irreversible_block_catcher(const eosio::chain::block_state_ptr &bst) { my->irreversible_block_catcher(bst);}
+
+    void uos_rates::accepted_block_catcher(const eosio::chain::block_state_ptr &ast) { my->accepted_block_catcher(ast);}
 
 }
