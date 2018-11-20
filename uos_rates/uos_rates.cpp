@@ -1,5 +1,6 @@
 #include <eosio/uos_rates/uos_rates.hpp>
 #include <eosio/uos_rates/transaction_queqe.hpp>
+#include <eosio/uos_rates/merkle_tree.hpp>
 #include <eosio/chain/exceptions.hpp>
 #include <eosio/chain_api_plugin/chain_api_plugin.hpp>
 #include <eosio/http_plugin/http_plugin.hpp>
@@ -367,10 +368,20 @@ namespace eosio {
         }
 
         //calculate hash");
-        string str_result = std::to_string(result.block_num) + ";";
-        for (auto item : result.res_map)
-            str_result += item.second.name + ";" + item.second.current_emission + ";";
-        result.result_hash = fc::sha256::hash(str_result).str();
+        uos::merkle_tree<string> mtree;
+        vector< pair< string, string> > mt_input;
+        for(auto item : result.res_map){
+            //only for non-zero emission
+            if(item.second.current_cumulative_emission == "0")
+                continue;
+
+            string str_statement = "emission " + item.second.name +
+                                   " " + item.second.current_cumulative_emission;
+            mt_input.emplace_back(make_pair(str_statement, str_statement));
+        }
+        mtree.set_accounts(mt_input);
+        mtree.count_tree();
+        result.result_hash = string(mtree.nodes_list[mtree.nodes_list.size() - 1][0]);
     }
 
     void uos_rates_impl::save_result()
