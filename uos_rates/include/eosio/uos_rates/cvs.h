@@ -182,18 +182,15 @@ string to_string_from_enum(node_type type) {
 
     static vector<vector<string>> read_csv(string filename)
     {
-        ilog("reading " + filename);
         vector<vector<string>> result;
         ifstream infile(filename);
         string line;
         while(getline(infile, line)){
-            ilog("line: " + line);
             vector<string> res_line;
             size_t pos;
             string token;
             while((pos = line.find(";")) != string::npos){
                 token = line.substr(0, pos);
-                ilog("token: " + token);
                 res_line.push_back(token);
                 line.erase(0, pos + 1);
             }
@@ -202,6 +199,32 @@ string to_string_from_enum(node_type type) {
 
         return result;
     }
+
+    static vector<map<string, string>> read_csv_map(string filename)
+    {
+        vector<map<string, string>> result;
+
+        auto csv = read_csv(filename);
+
+        if(csv.size() < 2)
+            return result;
+
+        auto names = csv[0];
+        for(int i = 1; i < csv.size(); i++) {
+            map<string, string> line;
+            for(int j = 0; j < csv[i].size(); j++){
+                //check column name
+                if(j >= names.size())
+                    elog("no name for column " + to_string(j) +
+                         " line " + to_string(i) +
+                         " file " + filename);
+                line[names[j]] = csv[i][j];
+            }
+            result.push_back(line);
+        }
+
+        return result;
+    };
 
 bool compressFile(string filename)
 {
