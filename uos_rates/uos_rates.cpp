@@ -33,6 +33,8 @@ namespace eosio {
 
         result_set get_result_stub(uint64_t current_calc_block);
 
+        void set_stakes_from_snapshot(uint64_t current_calc_block);
+
         void run_trx_queue(uint64_t num);
 
         void calculate_rates(uint32_t current_calc_block_num);
@@ -274,11 +276,18 @@ namespace eosio {
             new_result.res_map[name].prev_cumulative_emission = cumulative_emission;
         }
 
+        return new_result;
+    }
+
+    void uos_rates_impl::set_stakes_from_snapshot(uint64_t current_calc_block)
+    {
         //get the staked balance snapshot from the file
-        filename = "snapshot_" + to_string(current_calc_block) + ".csv";
-        if(!bfs::exists(dump_dir.string() + "/" + filename))
+        string filename = "snapshot_" + to_string(current_calc_block) + ".csv";
+        if(!bfs::exists(dump_dir.string() + "/" + filename)){
             elog("balance snapshot file not found " + filename);
-        csv = read_csv_map(dump_dir.string() + "/" + filename);
+            throw "file not found " + filename;
+        }
+        auto csv = read_csv_map(dump_dir.string() + "/" + filename);
         auto csv_vect = read_csv(dump_dir.string() + "/" + filename);
         for(auto i = 0; i < csv.size(); i++){
             string name = csv[i]["name"];
@@ -290,20 +299,19 @@ namespace eosio {
             if(cpu_weight == "-1") cpu_weight = "0";
             if(net_weight == "-1") net_weight = "0";
 
-            if(new_result.res_map.find(name) == new_result.res_map.end()){
-                new_result.res_map[name].name = name;
-                new_result.res_map[name].type = "ACCOUNT";
+            if(result.res_map.find(name) == result.res_map.end()){
+                result.res_map[name].name = name;
+                result.res_map[name].type = "ACCOUNT";
             }
 
             long total_stake = stol(cpu_weight) + stol(net_weight);
-            new_result.res_map[name].staked_balance = to_string(total_stake);
+            result.res_map[name].staked_balance = to_string(total_stake);
         }
-
-        return new_result;
     }
 
     void uos_rates_impl::calculate_rates(uint32_t current_calc_block_num) {
         result = get_result_stub(current_calc_block_num);
+        set_stakes_from_snapshot(current_calc_block_num);
 
         int32_t end_block = current_calc_block_num;
         int32_t start_block = end_block - window + 1;
@@ -421,6 +429,8 @@ namespace eosio {
         for (auto item : result.res_map){
             auto name = item.second.name;
             if(item.second.type != "ACCOUNT")
+                continue;
+            if(total_stake == 0)
                 continue;
 
             double stake_rate = stod(item.second.staked_balance) / (double) total_stake;
