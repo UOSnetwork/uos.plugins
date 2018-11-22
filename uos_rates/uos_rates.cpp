@@ -258,17 +258,16 @@ namespace eosio {
 
         //get the results for this hash from the file
         string filename = "result_" + block_num_str + "_" + hash_str + ".csv";
-        auto csv = CSVRead(dump_dir.string() + "/" + filename);
-        readLine(csv, 11);
+        auto csv = read_csv_map(dump_dir.string() + "/" + filename);
 
         //TODO if file not found request the results file from other nodes
 
         auto new_result = result_set(current_calc_block);
-        for(auto i = 1; i < csv.buffer.size(); i++){
+        for(auto i = 1; i < csv.size(); i++){
 
-            string name = csv.buffer[i][0];
-            string type = csv.buffer[i][1];
-            string cumulative_emission = csv.buffer[i][10];
+            string name = csv[i]["name"];
+            string type = csv[i]["type"];
+            string cumulative_emission = csv[i]["current_cumulative_emission"];
 
             //skip all non-zero emission
             if(cumulative_emission == "0")
