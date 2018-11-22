@@ -41,6 +41,10 @@ namespace eosio {
 
         void irreversible_block_catcher(const chain::block_state_ptr& bsp);
 
+        void  first_run_plugin();
+        void  parse_transactions_from_block(eosio::chain::signed_block_ptr block);
+
+
         void run_trx_queue(uint64_t num);
 
         vector<account_name> get_all_accounts();
@@ -84,6 +88,7 @@ namespace eosio {
         string calculator_private_key = "";
         string calc_contract_public_key = "";
         string calc_contract_private_key = "";
+        bool is_first_parse =  false;
 
 //        double social_importance_share = 0.1;
 //        double transfer_importance_share = 0.1;
@@ -104,31 +109,32 @@ namespace eosio {
     };
 
     void u_com_impl::irreversible_block_catcher(const eosio::chain::block_state_ptr &bsp) {
-        chain::controller &cc = app().get_plugin<chain_plugin>().chain();
+
         auto ro_api = app().get_plugin<chain_plugin>().get_read_only_api();
 
         //determine current calculating block number
         auto irr_block_id = bsp->block->id();
         auto irr_block_num = bsp->block->num_from_id(irr_block_id);
-        auto current_calc_block_num = irr_block_num - (irr_block_num % period);
+        auto timestamp =  bsp->block->timestamp.to_time_point();
+//        elog("Catch irrreversible blocks" + to_string(irr_block_num));
 
         for (auto trs : bsp->block->transactions) {
-//            uint32_t block_height = current_calc_block - block->block_num();
 
             auto transaction = trs.trx.get<chain::packed_transaction>().get_transaction();
             auto actions = transaction.actions;
+            auto transaction_id = transaction.id();
             for (auto action : actions) {
                 if(action.account == N(eosio.token) || action.account == N(uos.activity) || action.account == N(uos.calcs)){
-//                    cout<<endl<<action.name.to_string()<<" "<<action.account.to_string()<<endl;
-//                    wlog("sent");
                     fc::mutable_variant_object act;
-                    act["contract"]=fc::variant(action.account);
+                    act["block_num"]=fc::variant(irr_block_num);
+                    act["block_timestamp"]=fc::variant(timestamp);
+                    act["transaction_id"]=fc::variant(transaction_id);
+                    act["account"]=fc::variant(action.account);
                     act["action"]=fc::variant(action.name);
-                    act["receiver"] = fc::variant(action.authorization);
-                    act["args"] = ro_api.abi_bin_to_json({action.account,action.name,action.data}).args;
+//                    act["receiver"] = fc::variant(action.authorization);
+                    act["data"] = ro_api.abi_bin_to_json({action.account,action.name,action.data}).args;
 
-
-
+                    //TODO:rename queue,param
                     SimplePocoHandler handler("localhost", 5672);
                     AMQP::Connection connection(&handler, AMQP::Login("guest", "guest"), "/");
                     AMQP::Channel channel(&connection);
@@ -144,9 +150,82 @@ namespace eosio {
                 }
             }
         }
-
-
     }
+
+    void u_com_impl::first_run_plugin()
+    {
+        if(is_first_parse == true)
+            return;
+
+        chain::controller &cc = app().get_plugin<chain_plugin>().chain();
+        int32_t start_block = 0;
+        auto current_head_block_number = cc.fork_db_head_block_num();
+        elog("Current blocks number" + to_string(current_head_block_number));
+        int32_t end_block =  current_head_block_number;
+        if (start_block < 1)
+            start_block = 1;
+
+        ilog("start_block " + std::to_string(start_block));
+        ilog("end_block " + std::to_string(end_block));
+        for (int i = start_block; i <= end_block; i++) {
+            try {
+                auto block = cc.fetch_block_by_number(i);
+                elog("Current parse block:" + to_string(i));
+                parse_transactions_from_block(block);
+//                if (i == 1600000)
+//                {
+//                is_first_parse = true;
+//                return;
+//                }
+            }
+
+            catch (...) {
+                elog("Error on parsing block " + std::to_string(i));
+            }
+        }
+
+        is_first_parse = true;
+    }
+
+    void u_com_impl::parse_transactions_from_block(eosio::chain::signed_block_ptr block)
+    {
+
+    auto ro_api = app().get_plugin<chain_plugin>().get_read_only_api();
+
+        auto current_block_id = block->id();
+        auto current_block_num = block->num_from_id(current_block_id);
+    for (auto trs : block->transactions) {
+        auto transaction = trs.trx.get<chain::packed_transaction>().get_transaction();
+        auto actions = transaction.actions;
+            auto transaction_id = transaction.id();
+            for (auto action : actions) {
+                if(action.account == N(eosio.token) || action.account == N(uos.activity) || action.account == N(uos.calcs)){
+                    fc::mutable_variant_object act;
+                    act["block_num"]=fc::variant(current_block_num);
+//                    act["block_timestamp"]=fc::variant(timestamp);
+                    act["transaction_id"]=fc::variant(transaction_id);
+                    act["account"]=fc::variant(action.account);
+                    act["action"]=fc::variant(action.name);
+                    act["data"] = ro_api.abi_bin_to_json({action.account,action.name,action.data}).args;
+
+                    //TODO:rename queue,param
+                    SimplePocoHandler handler("localhost", 5672);
+                    AMQP::Connection connection(&handler, AMQP::Login("guest", "guest"), "/");
+                    AMQP::Channel channel(&connection);
+
+                    channel.onReady([&](){
+                        if(handler.connected()){
+                            channel.publish("", "hello", fc::json::to_string(act));
+                            handler.quit();
+                        }
+                    });
+                    handler.loop();
+
+                }
+            }
+        }
+}
+
 
     vector<account_name > u_com_impl::get_all_accounts()
     {
@@ -336,14 +415,14 @@ namespace eosio {
     }
 
     void u_com::plugin_startup() {
+
         ilog( "starting u_com" );
-
         chain::controller &cc = app().get_plugin<chain_plugin>().chain();
-
         cc.irreversible_block.connect([this](const auto& bsp){
             my->irreversible_block_catcher(bsp);
         });
 
+        my->first_run_plugin();
     }
 
     void u_com::plugin_shutdown() {
@@ -351,5 +430,6 @@ namespace eosio {
     }
 
     void u_com::irreversible_block_catcher(const eosio::chain::block_state_ptr &bst) { my->irreversible_block_catcher(bst);}
+    void u_com::first_run_plugin() { my->first_run_plugin();}
 
 }

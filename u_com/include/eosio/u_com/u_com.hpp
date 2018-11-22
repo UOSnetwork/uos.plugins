@@ -19,6 +19,7 @@ namespace eosio {
         void plugin_shutdown();
 
         void irreversible_block_catcher(const chain::block_state_ptr& bst);
+        void first_run_plugin();
 
     private:
         std::unique_ptr<class u_com_impl> my;

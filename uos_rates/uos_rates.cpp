@@ -1012,7 +1012,7 @@ namespace eosio {
         chain::controller &cc = app().get_plugin<chain_plugin>().chain();
 
         cc.irreversible_block.connect([this](const auto& bsp){
-            my->run_trx_queue(10);
+            my->run_trx_queue(1);
             my->irreversible_block_catcher(bsp);
         });
 
