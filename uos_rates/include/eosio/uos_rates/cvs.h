@@ -180,6 +180,29 @@ string to_string_from_enum(node_type type) {
         }
     }
 
+    static vector<vector<string>> read_csv(string filename)
+    {
+        ilog("reading " + filename);
+        vector<vector<string>> result;
+        ifstream infile(filename);
+        string line;
+        while(getline(infile, line)){
+            ilog("line: " + line);
+            vector<string> res_line;
+            size_t pos;
+            string token;
+            while((pos = line.find(";")) != string::npos){
+                token = line.substr(0, pos);
+                ilog("token: " + token);
+                res_line.push_back(token);
+                line.erase(0, pos + 1);
+            }
+            result.push_back(res_line);
+        }
+
+        return result;
+    }
+
 bool compressFile(string filename)
 {
     bfs::path pathObj(filename);
