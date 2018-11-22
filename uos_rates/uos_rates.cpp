@@ -182,23 +182,19 @@ namespace eosio {
         chain_apis::read_only::get_block_params t;
         auto current_head_block_number = cc.fork_db_head_block_num();
 
-        auto accept_block_id = asp->block->id();
-        auto accept_block_num = asp->block->num_from_id(accept_block_id);
-
-        auto tt = current_head_block_number % period;
-        if(tt == 0 && current_head_block_number == accept_block_num )
-            save_userres(current_head_block_number );
-//        elog(" accepted block " + to_string(acc_block_num));
-
+        if(current_head_block_number % period == 0) {
+            save_userres(current_head_block_number);
+            ilog("staked balances snapshot saved for block " + to_string(current_head_block_number));
+        }
     }
 
     void uos_rates_impl::save_userres(uint current_head_block_number) {
 
         string current_filename = "snapshot_" + to_string(current_head_block_number) + ".csv";
-        bfs::path prev_filename ( dump_dir.string()+"/snapshot_" + to_string(current_head_block_number - period) + ".csv");
-//        elog("Prevision filename snapshot" + prev_filename.string());
-        if(bfs::exists(prev_filename))
-            bfs::remove(prev_filename);
+        string file_path = dump_dir.string() + "/" + current_filename;
+
+        if(bfs::exists(file_path))
+            bfs::remove(file_path);
         CSVWriter csv_result_userres{current_filename};
         csv_result_userres.settings(true, dump_dir.string(), current_filename);
 
@@ -263,7 +259,7 @@ namespace eosio {
         //TODO if file not found request the results file from other nodes
 
         auto new_result = result_set(current_calc_block);
-        for(auto i = 1; i < csv.size(); i++){
+        for(auto i = 0; i < csv.size(); i++){
 
             string name = csv[i]["name"];
             string type = csv[i]["type"];
@@ -276,6 +272,31 @@ namespace eosio {
             new_result.res_map[name].name = name;
             new_result.res_map[name].type = type;
             new_result.res_map[name].prev_cumulative_emission = cumulative_emission;
+        }
+
+        //get the staked balance snapshot from the file
+        filename = "snapshot_" + to_string(current_calc_block) + ".csv";
+        if(!bfs::exists(dump_dir.string() + "/" + filename))
+            elog("balance snapshot file not found " + filename);
+        csv = read_csv_map(dump_dir.string() + "/" + filename);
+        auto csv_vect = read_csv(dump_dir.string() + "/" + filename);
+        for(auto i = 0; i < csv.size(); i++){
+            string name = csv[i]["name"];
+            string cpu_weight = csv[i]["cpu_weight"];
+            string net_weight = csv[i]["net_weight"];
+            auto name_vect = csv_vect[i];
+            auto vect = csv_vect[i + 1];
+
+            if(cpu_weight == "-1") cpu_weight = "0";
+            if(net_weight == "-1") net_weight = "0";
+
+            if(new_result.res_map.find(name) == new_result.res_map.end()){
+                new_result.res_map[name].name = name;
+                new_result.res_map[name].type = "ACCOUNT";
+            }
+
+            long total_stake = stol(cpu_weight) + stol(net_weight);
+            new_result.res_map[name].staked_balance = to_string(total_stake);
         }
 
         return new_result;
@@ -388,21 +409,43 @@ namespace eosio {
             }
         }
 
-        //set results for importance accounts");
+        //set the stake rate for accounts
+        long total_stake = 0;
+        for (auto item : result.res_map){
+            auto name = item.second.name;
+            if(item.second.type != "ACCOUNT")
+                continue;
+
+            total_stake += stol(item.second.staked_balance);
+        }
+        for (auto item : result.res_map){
+            auto name = item.second.name;
+            if(item.second.type != "ACCOUNT")
+                continue;
+
+            double stake_rate = stod(item.second.staked_balance) / (double) total_stake;
+            std::stringstream ss;
+            ss << std::fixed << std::setprecision(10) << stake_rate;
+            result.res_map[name].stake_rate = ss.str();
+        }
+
+        //set importance for accounts");
         for (auto item : result.res_map) {
             auto name = item.second.name;
             if (item.second.type != "ACCOUNT")
                 continue;
 
             double importance = stod(result.res_map[name].trans_rate) * transfer_importance_share +
-                                stod(result.res_map[name].soc_rate) * social_importance_share;
+                                stod(result.res_map[name].soc_rate) * social_importance_share +
+                                stod(result.res_map[name].stake_rate) * stake_importance_share;
 
             std::stringstream ss;
             ss << std::fixed << std::setprecision(10) << importance;
             result.res_map[name].importance = ss.str();
 
             double importance_scaled = stod(result.res_map[name].trans_rate_scaled) * transfer_importance_share +
-                                       stod(result.res_map[name].soc_rate_scaled) * social_importance_share;
+                                       stod(result.res_map[name].soc_rate_scaled) * social_importance_share +
+                                       stod(result.res_map[name].stake_rate_scaled) * stake_importance_share;
 
             ss.str("");
             ss << importance_scaled;
@@ -464,6 +507,9 @@ namespace eosio {
                 "soc_rate_scaled",
                 "trans_rate",
                 "trans_rate_scaled",
+                "staked_balance",
+                "stake_rate",
+                "stake_rate_scaled",
                 "importance",
                 "importance_scaled",
                 "current_emission",
@@ -481,6 +527,9 @@ namespace eosio {
                 item.second.soc_rate_scaled,
                 item.second.trans_rate,
                 item.second.trans_rate_scaled,
+                item.second.staked_balance,
+                item.second.stake_rate,
+                item.second.stake_rate_scaled,
                 item.second.importance,
                 item.second.importance_scaled,
                 item.second.current_emission,
@@ -598,12 +647,6 @@ namespace eosio {
             data.set("name", item.second.name);
             data.set("value", item.second.soc_rate_scaled);
             add_transaction(contract_calculators, "setrate", data, calc_contract_public_key, calc_contract_private_key, contract_calculators);
-        }
-        for(auto item : result.res_map) {
-            fc::mutable_variant_object data;
-            data.set("name", item.second.name);
-            data.set("value", item.second.trans_rate_scaled);
-            add_transaction(contract_calculators, "setratetran", data, calc_contract_public_key, calc_contract_private_key, contract_calculators);
         }
     }
 

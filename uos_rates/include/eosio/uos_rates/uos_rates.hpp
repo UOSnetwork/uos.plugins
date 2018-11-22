@@ -31,10 +31,14 @@ namespace eosio {
     public:
         string name;
         string type;
+
         string soc_rate = "0";
         string soc_rate_scaled = "0";
         string trans_rate = "0";
         string trans_rate_scaled = "0";
+        string staked_balance = "0";
+        string stake_rate = "0";
+        string stake_rate_scaled = "0";
         string importance = "0";
         string importance_scaled = "0";
         string prev_cumulative_emission = "0";
