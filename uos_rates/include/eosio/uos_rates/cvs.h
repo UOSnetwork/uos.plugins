@@ -194,6 +194,7 @@ string to_string_from_enum(node_type type) {
                 res_line.push_back(token);
                 line.erase(0, pos + 1);
             }
+            res_line.push_back(line);
             result.push_back(res_line);
         }
 
