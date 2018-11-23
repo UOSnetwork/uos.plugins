@@ -99,6 +99,7 @@ SimplePocoHandler::~SimplePocoHandler()
 
 void SimplePocoHandler::loop()
 {
+    m_impl->quit = false;
     try
     {
         while (!m_impl->quit)

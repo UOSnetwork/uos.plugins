@@ -36,6 +36,7 @@ namespace eosio {
     static appbase::abstract_plugin& _u_com = app().register_plugin<u_com>();
 
     class u_com_impl {
+        std::thread *th;
 
     public:
 
@@ -163,7 +164,7 @@ namespace eosio {
         bool found_action = false;
         fc::mutable_variant_object var_block;
         var_block["blocknum"]=current_block_num;
-        var_block["timestamp"]= block->timestamp.to_time_point();
+        var_block["block_timestamp"]=fc::variant(block->timestamp);
         vector <fc::mutable_variant_object > action_data;
         fc::variants trx_vector;
 
@@ -194,24 +195,28 @@ namespace eosio {
 
 
         if(found_action){
-            var_block["transactions"]= fc::variant(trx_vector);
-//            std::cout<<fc::json::to_string(var_block)<<endl;
-
-            //TODO:rename queue,param
-            SimplePocoHandler handler(queue_host, queue_port);
-            AMQP::Connection connection(&handler, AMQP::Login(login, passwd), "/");
-            AMQP::Channel channel(&connection);
-
-            channel.onReady([&](){
-                if(handler.connected()){
-                    channel.publish("", queue_name, fc::json::to_string(var_block));
-                    handler.quit();
+            if(th != nullptr){
+                if(th->joinable()) {
+                    th->join();
+                    delete (th);
                 }
-                else{
-                    elog("Handler not connected");
-                }
-            });
-            handler.loop();
+            }
+            var_block["transactions"] = fc::variant(trx_vector);
+            th = new std::thread([&](fc::mutable_variant_object mvar) {
+                SimplePocoHandler handler("localhost", 5672);
+                AMQP::Connection connection(&handler, AMQP::Login("guest", "guest"), "/");
+                AMQP::Channel channel(&connection);
+
+                channel.onReady([&]() {
+                        channel.publish("", "hello", fc::json::to_string(mvar));
+                    if (handler.connected()) {
+                    } else {
+                        handler.quit();
+                    }
+                        elog("Handler not connected");
+                });
+                handler.loop();
+            },var_block);
 
         }
     }
@@ -413,9 +418,10 @@ namespace eosio {
         my->queue_name = options.at("queue-name").as<string>();
         my->queue_port = options.at("queue-port").as<uint32_t >();
         my->queue_host = options.at("queue-host").as<string>();
-        my->login = options.at("login").as<string>();
         my->passwd = options.at("passwd").as<string>();
+        my->login = options.at("login").as<string>();
         my->is_parse_blocks = options.at("parse-blocks").as<bool>();
+        my->th= nullptr;
 
 
     }
