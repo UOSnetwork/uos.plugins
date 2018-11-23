@@ -134,7 +134,7 @@ void SimplePocoHandler::loop()
             }
             sendDataFromBuffer();
 
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
         }
 
         if (m_impl->quit && m_impl->outBuffer.available())
