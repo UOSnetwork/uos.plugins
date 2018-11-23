@@ -42,7 +42,7 @@ namespace eosio {
         void irreversible_block_catcher(const chain::block_state_ptr& bsp);
 
         void  first_run_plugin();
-        void  parse_transactions_from_block(eosio::chain::signed_block_ptr block);
+        void  parse_transactions_from_block(const eosio::chain::signed_block_ptr &block);
 
 
         void run_trx_queue(uint64_t num);
@@ -88,7 +88,8 @@ namespace eosio {
         string calculator_private_key = "";
         string calc_contract_public_key = "";
         string calc_contract_private_key = "";
-        bool is_first_parse =  false;
+        bool is_parse_blocks = true;
+        uint32_t port = 0;
 
 //        double social_importance_share = 0.1;
 //        double transfer_importance_share = 0.1;
@@ -154,28 +155,29 @@ namespace eosio {
 
     void u_com_impl::first_run_plugin()
     {
-        if(is_first_parse == true)
+        if(is_parse_blocks == false)
             return;
 
         chain::controller &cc = app().get_plugin<chain_plugin>().chain();
-        int32_t start_block = 0;
+        uint32_t start_block = 1;
         auto current_head_block_number = cc.fork_db_head_block_num();
         elog("Current blocks number" + to_string(current_head_block_number));
-        int32_t end_block =  current_head_block_number;
-        if (start_block < 1)
-            start_block = 1;
+        uint32_t end_block =  current_head_block_number;
+//        if (start_block < 1)
+//            start_block = 1;
 
         ilog("start_block " + std::to_string(start_block));
         ilog("end_block " + std::to_string(end_block));
-        for (int i = start_block; i <= end_block; i++) {
+
+        for (uint32_t i = start_block; i <= end_block; i++) {
             try {
                 auto block = cc.fetch_block_by_number(i);
                 elog("Current parse block:" + to_string(i));
                 parse_transactions_from_block(block);
-//                if (i == 1600000)
+//                if (i >= 1600000)
 //                {
-//                is_first_parse = true;
-//                return;
+//                    is_parse_blocks = false;
+//                    break;
 //                }
             }
 
@@ -184,47 +186,71 @@ namespace eosio {
             }
         }
 
-        is_first_parse = true;
     }
 
-    void u_com_impl::parse_transactions_from_block(eosio::chain::signed_block_ptr block)
+    void u_com_impl::parse_transactions_from_block(const eosio::chain::signed_block_ptr &block)
     {
 
-    auto ro_api = app().get_plugin<chain_plugin>().get_read_only_api();
+
+        auto ro_api = app().get_plugin<chain_plugin>().get_read_only_api();
 
         auto current_block_id = block->id();
         auto current_block_num = block->num_from_id(current_block_id);
-    for (auto trs : block->transactions) {
-        auto transaction = trs.trx.get<chain::packed_transaction>().get_transaction();
-        auto actions = transaction.actions;
+        bool found_action = false;
+        fc::mutable_variant_object var_block;
+        var_block["blocknum"]=current_block_num;
+        vector <fc::mutable_variant_object > action_data;
+        fc::variants trx_vector;
+
+        for (auto trs : block->transactions) {
+            auto transaction = trs.trx.get<chain::packed_transaction>().get_transaction();
+            auto actions = transaction.actions;
             auto transaction_id = transaction.id();
+            fc::mutable_variant_object var_trx;
+            var_trx["transaction_id"]=fc::variant(transaction_id);
+            fc::variants actions_vector;
             for (auto action : actions) {
                 if(action.account == N(eosio.token) || action.account == N(uos.activity) || action.account == N(uos.calcs)){
                     fc::mutable_variant_object act;
                     act["block_num"]=fc::variant(current_block_num);
+                    act["receiver"] = fc::variant(action.authorization);
 //                    act["block_timestamp"]=fc::variant(timestamp);
-                    act["transaction_id"]=fc::variant(transaction_id);
                     act["account"]=fc::variant(action.account);
                     act["action"]=fc::variant(action.name);
                     act["data"] = ro_api.abi_bin_to_json({action.account,action.name,action.data}).args;
-
-                    //TODO:rename queue,param
-                    SimplePocoHandler handler("localhost", 5672);
-                    AMQP::Connection connection(&handler, AMQP::Login("guest", "guest"), "/");
-                    AMQP::Channel channel(&connection);
-
-                    channel.onReady([&](){
-                        if(handler.connected()){
-                            channel.publish("", "hello", fc::json::to_string(act));
-                            handler.quit();
-                        }
-                    });
-                    handler.loop();
-
+                    found_action = true;
+                    actions_vector.push_back(act);
                 }
+
             }
+            var_trx["actions"]=fc::variant(actions_vector);
+            trx_vector.push_back(var_trx);
+            var_trx["actions"].clear();
         }
-}
+
+
+        if(found_action){
+            var_block["transactions"]= fc::variant(trx_vector);
+//            std::cout<<fc::json::to_string(var_block)<<endl;
+
+            //TODO:rename queue,param
+            SimplePocoHandler handler("localhost", 5672);
+            AMQP::Connection connection(&handler, AMQP::Login("guest", "guest"), "/");
+            AMQP::Channel channel(&connection);
+
+            channel.onReady([&](){
+                if(handler.connected()){
+                    channel.publish("", "hello", fc::json::to_string(var_block));
+                    handler.quit();
+                }
+                else{
+                    elog("Handler not connected");
+                }
+            });
+            handler.loop();
+
+        }
+    }
 
 
     vector<account_name > u_com_impl::get_all_accounts()
@@ -408,9 +434,17 @@ namespace eosio {
     u_com::~u_com(){}
 
     void u_com::set_program_options(options_description&, options_description& cfg) {
+        cfg.add_options()
+//                ("my_port", boost::program_options::value<int32_t >()->default_value(5672), "Port for queue ")
+                ("is_parse_blocks", boost::program_options::value<bool>()->default_value(false), "Parse blocks for start plugin")
+                ;
     }
 
     void u_com::plugin_initialize(const variables_map& options) {
+        my->_options = &options;
+//         my->port = options.at("my_port").as<uint32_t >();
+        my->is_parse_blocks = options.at("is_parse_blocks").as<bool>();
+
 
     }
 
