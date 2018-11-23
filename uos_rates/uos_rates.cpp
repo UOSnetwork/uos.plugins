@@ -31,9 +31,9 @@ namespace eosio {
 
         void save_userres(uint current_head_block_number);
 
-        result_set get_result_stub(uint64_t current_calc_block);
+        void update_from_prev_result(uint64_t current_calc_block);
 
-        void set_stakes_from_snapshot(uint64_t current_calc_block);
+        void update_from_snapshot(uint64_t current_calc_block);
 
         void run_trx_queue(uint64_t num);
 
@@ -233,7 +233,7 @@ namespace eosio {
         }
     }
 
-    result_set uos_rates_impl::get_result_stub(uint64_t current_calc_block){
+    void uos_rates_impl::update_from_prev_result(uint64_t current_calc_block){
 
         //check if there is consensus hash in the consensus table
         auto ro_api = app().get_plugin<chain_plugin>().get_read_only_api();
@@ -247,39 +247,66 @@ namespace eosio {
         get_cons.json = true;
         auto cons_rows = ro_api.get_table_rows(get_cons);
 
-        //if there is no previous result, create a new one
-        if(cons_rows.rows.size() == 0)
-            return result_set(current_calc_block);
+        //if the previous result is found, use it to update
+        if(cons_rows.rows.size() > 0) {
+            ilog("getting cumulative emission from previous result");
 
-        string block_num_str = cons_rows.rows[0]["block_num"].as_string();
-        string hash_str = cons_rows.rows[0]["hash"].as_string();
+            string block_num_str = cons_rows.rows[0]["block_num"].as_string();
+            string hash_str = cons_rows.rows[0]["hash"].as_string();
 
-        //get the results for this hash from the file
-        string filename = "result_" + block_num_str + "_" + hash_str + ".csv";
-        auto csv = read_csv_map(dump_dir.string() + "/" + filename);
+            //get the results for this hash from the file
+            string filename = "result_" + block_num_str + "_" + hash_str + ".csv";
+            auto csv = read_csv_map(dump_dir.string() + "/" + filename);
 
-        //TODO if file not found request the results file from other nodes
+            //TODO if file not found request the results file from other nodes
 
-        auto new_result = result_set(current_calc_block);
-        for(auto i = 0; i < csv.size(); i++){
+            for (auto i = 0; i < csv.size(); i++) {
 
-            string name = csv[i]["name"];
-            string type = csv[i]["type"];
-            string cumulative_emission = csv[i]["current_cumulative_emission"];
+                string name = csv[i]["name"];
+                string type = csv[i]["type"];
+                string cumulative_emission = csv[i]["current_cumulative_emission"];
 
-            //skip all non-zero emission
-            if(cumulative_emission == "0")
-                continue;
+                //skip all non-zero emission
+                if (cumulative_emission == "0")
+                    continue;
 
-            new_result.res_map[name].name = name;
-            new_result.res_map[name].type = type;
-            new_result.res_map[name].prev_cumulative_emission = cumulative_emission;
+                result.res_map[name].name = name;
+                result.res_map[name].type = type;
+                result.res_map[name].prev_cumulative_emission = cumulative_emission;
+            }
         }
+        //if the previous result is not found, use the emission values from the old table
+        else
+        {
+            ilog("getting cumulative emission from the old table");
 
-        return new_result;
+            auto accs = get_all_accounts();
+            for(auto acc : accs) {
+                chain_apis::read_only::get_table_rows_params get_old_em;
+                get_old_em.code = eosio::chain::name(contract_calculators);
+                get_old_em.scope = acc;
+                get_old_em.table = N(account);
+                get_old_em.limit = 1;
+                get_old_em.json = true;
+                auto em_rows = ro_api.get_table_rows(get_old_em);
+
+                if(em_rows.rows.size() == 0)
+                    continue;
+
+                string em_str = em_rows.rows[0]["account_sum"].as_string();
+                double em_double = stod(em_str);
+                stringstream ss;
+                ss << fixed << setprecision(4) << em_double;
+                string em_str_round =  ss.str();
+
+                result.res_map[acc].name = acc;
+                result.res_map[acc].type = "ACCOUNT";
+                result.res_map[acc].prev_cumulative_emission = em_str_round;
+            }
+        }
     }
 
-    void uos_rates_impl::set_stakes_from_snapshot(uint64_t current_calc_block)
+    void uos_rates_impl::update_from_snapshot(uint64_t current_calc_block)
     {
         //get the staked balance snapshot from the file
         string filename = "snapshot_" + to_string(current_calc_block) + ".csv";
@@ -310,8 +337,9 @@ namespace eosio {
     }
 
     void uos_rates_impl::calculate_rates(uint32_t current_calc_block_num) {
-        result = get_result_stub(current_calc_block_num);
-        set_stakes_from_snapshot(current_calc_block_num);
+        result = result_set(current_calc_block_num);
+        update_from_prev_result(current_calc_block_num);
+        update_from_snapshot(current_calc_block_num);
 
         int32_t end_block = current_calc_block_num;
         int32_t start_block = end_block - window + 1;
