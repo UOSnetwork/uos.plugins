@@ -111,46 +111,8 @@ namespace eosio {
 
     void u_com_impl::irreversible_block_catcher(const eosio::chain::block_state_ptr &bsp) {
 
-        auto ro_api = app().get_plugin<chain_plugin>().get_read_only_api();
+        parse_transactions_from_block(bsp->block);
 
-        //determine current calculating block number
-        auto irr_block_id = bsp->block->id();
-        auto irr_block_num = bsp->block->num_from_id(irr_block_id);
-        auto timestamp =  bsp->block->timestamp.to_time_point();
-//        elog("Catch irrreversible blocks" + to_string(irr_block_num));
-
-        for (auto trs : bsp->block->transactions) {
-
-            auto transaction = trs.trx.get<chain::packed_transaction>().get_transaction();
-            auto actions = transaction.actions;
-            auto transaction_id = transaction.id();
-            for (auto action : actions) {
-                if(action.account == N(eosio.token) || action.account == N(uos.activity) || action.account == N(uos.calcs)){
-                    fc::mutable_variant_object act;
-                    act["block_num"]=fc::variant(irr_block_num);
-                    act["block_timestamp"]=fc::variant(timestamp);
-                    act["transaction_id"]=fc::variant(transaction_id);
-                    act["account"]=fc::variant(action.account);
-                    act["action"]=fc::variant(action.name);
-//                    act["receiver"] = fc::variant(action.authorization);
-                    act["data"] = ro_api.abi_bin_to_json({action.account,action.name,action.data}).args;
-
-                    //TODO:rename queue,param
-                    SimplePocoHandler handler("localhost", 5672);
-                    AMQP::Connection connection(&handler, AMQP::Login("guest", "guest"), "/");
-                    AMQP::Channel channel(&connection);
-
-                    channel.onReady([&](){
-                        if(handler.connected()){
-                            channel.publish("", "hello", fc::json::to_string(act));
-                            handler.quit();
-                        }
-                    });
-                    handler.loop();
-
-                }
-            }
-        }
     }
 
     void u_com_impl::first_run_plugin()
@@ -212,12 +174,13 @@ namespace eosio {
             for (auto action : actions) {
                 if(action.account == N(eosio.token) || action.account == N(uos.activity) || action.account == N(uos.calcs)){
                     fc::mutable_variant_object act;
-                    act["block_num"]=fc::variant(current_block_num);
-                    act["receiver"] = fc::variant(action.authorization);
+//                    act["block_num"]=fc::variant(current_block_num);
+
 //                    act["block_timestamp"]=fc::variant(timestamp);
                     act["account"]=fc::variant(action.account);
                     act["action"]=fc::variant(action.name);
                     act["data"] = ro_api.abi_bin_to_json({action.account,action.name,action.data}).args;
+                    act["receiver"] = fc::variant(action.authorization);
                     found_action = true;
                     actions_vector.push_back(act);
                 }
