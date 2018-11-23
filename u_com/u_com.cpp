@@ -88,8 +88,12 @@ namespace eosio {
         string calculator_private_key = "";
         string calc_contract_public_key = "";
         string calc_contract_private_key = "";
-        bool is_parse_blocks = true;
-        uint32_t port = 0;
+        bool is_parse_blocks = false;
+        string queue_host = "localhost";
+        string queue_name = "hello";
+        uint32_t queue_port = 5672;
+        string login = "guest";
+        string passwd = "guest";
 
 //        double social_importance_share = 0.1;
 //        double transfer_importance_share = 0.1;
@@ -125,8 +129,6 @@ namespace eosio {
         auto current_head_block_number = cc.fork_db_head_block_num();
         elog("Current blocks number" + to_string(current_head_block_number));
         uint32_t end_block =  current_head_block_number;
-//        if (start_block < 1)
-//            start_block = 1;
 
         ilog("start_block " + std::to_string(start_block));
         ilog("end_block " + std::to_string(end_block));
@@ -161,6 +163,7 @@ namespace eosio {
         bool found_action = false;
         fc::mutable_variant_object var_block;
         var_block["blocknum"]=current_block_num;
+        var_block["timestamp"]= block->timestamp.to_time_point();
         vector <fc::mutable_variant_object > action_data;
         fc::variants trx_vector;
 
@@ -174,8 +177,6 @@ namespace eosio {
             for (auto action : actions) {
                 if(action.account == N(eosio.token) || action.account == N(uos.activity) || action.account == N(uos.calcs)){
                     fc::mutable_variant_object act;
-//                    act["block_num"]=fc::variant(current_block_num);
-
 //                    act["block_timestamp"]=fc::variant(timestamp);
                     act["account"]=fc::variant(action.account);
                     act["action"]=fc::variant(action.name);
@@ -197,13 +198,13 @@ namespace eosio {
 //            std::cout<<fc::json::to_string(var_block)<<endl;
 
             //TODO:rename queue,param
-            SimplePocoHandler handler("localhost", 5672);
-            AMQP::Connection connection(&handler, AMQP::Login("guest", "guest"), "/");
+            SimplePocoHandler handler(queue_host, queue_port);
+            AMQP::Connection connection(&handler, AMQP::Login(login, passwd), "/");
             AMQP::Channel channel(&connection);
 
             channel.onReady([&](){
                 if(handler.connected()){
-                    channel.publish("", "hello", fc::json::to_string(var_block));
+                    channel.publish("", queue_name, fc::json::to_string(var_block));
                     handler.quit();
                 }
                 else{
@@ -398,15 +399,23 @@ namespace eosio {
 
     void u_com::set_program_options(options_description&, options_description& cfg) {
         cfg.add_options()
-//                ("my_port", boost::program_options::value<int32_t >()->default_value(5672), "Port for queue ")
-                ("is_parse_blocks", boost::program_options::value<bool>()->default_value(false), "Parse blocks for start plugin")
+                ("queue-name", boost::program_options::value<string>()->default_value("hello"), "Name for queue" )
+                ("queue-port", bpo::value<uint32_t>()->default_value(5672),"Port for queue.")
+                ("queue-host", boost::program_options::value<string>()->default_value("localhost"), "Host for queue" )
+                ("login", boost::program_options::value<string>()->default_value("guest"), "Login for cleints" )
+                ("passwd", boost::program_options::value<string>()->default_value("guest"), "Passwd for clients" )
+                ("parse-blocks", boost::program_options::value<bool>()->default_value(false), "Parse all blocks (to current) at start plugin get transactions" )
                 ;
     }
 
     void u_com::plugin_initialize(const variables_map& options) {
         my->_options = &options;
-//         my->port = options.at("my_port").as<uint32_t >();
-        my->is_parse_blocks = options.at("is_parse_blocks").as<bool>();
+        my->queue_name = options.at("queue-name").as<string>();
+        my->queue_port = options.at("queue-port").as<uint32_t >();
+        my->queue_host = options.at("queue-host").as<string>();
+        my->login = options.at("login").as<string>();
+        my->passwd = options.at("passwd").as<string>();
+        my->is_parse_blocks = options.at("parse-blocks").as<bool>();
 
 
     }
