@@ -13,9 +13,24 @@
 #include <regex>
 #include <iostream>
 
+#define ENUM_TO_STR(ENUM) string(#ENUM)
 
 namespace eosio {
     using namespace std;
+
+    enum DRR_Tags
+    {
+        DRR_TAG_OWNERNAME = 1,
+        DRR_TAG_ACTIONINFO,
+        DRR_TAG_IRRBLOCK,
+        DRR_TAG_ALLBLOCK,
+        DRR_TAG_DATAINFO,
+        DRR_TAG_ERRMSG,
+        DRR_TAG_INITIALPORT,
+        DRR_TAG_ID_MSG,
+        DRR_TAG_RETCODE,
+        DRR_TAG_LAST = 1001
+    };
 
 
     bool is_valid_regex_string(const std::string& rgx_str)
@@ -43,7 +58,7 @@ namespace eosio {
         void irreversible_block_catcher(const chain::block_state_ptr& bsp);
 
         void  first_run_plugin();
-        void  parse_transactions_from_block(const eosio::chain::signed_block_ptr &block);
+        void  parse_transactions_from_block(const eosio::chain::signed_block_ptr &block, fc::mutable_variant_object &tags);
 
 
         void run_trx_queue(uint64_t num);
@@ -96,6 +111,9 @@ namespace eosio {
         string login = "guest";
         string passwd = "guest";
 
+
+
+
 //        double social_importance_share = 0.1;
 //        double transfer_importance_share = 0.1;
 //        double stake_importance_share = 1.0 - social_importance_share - transfer_importance_share;
@@ -116,7 +134,10 @@ namespace eosio {
 
     void u_com_impl::irreversible_block_catcher(const eosio::chain::block_state_ptr &bsp) {
 
-        parse_transactions_from_block(bsp->block);
+        fc::mutable_variant_object act;
+        act["action"] = to_string(DRR_TAG_ACTIONINFO);
+        act["type"] =to_string(DRR_TAG_IRRBLOCK);
+        parse_transactions_from_block(bsp->block,act);
 
     }
 
@@ -133,12 +154,14 @@ namespace eosio {
 
         ilog("start_block " + std::to_string(start_block));
         ilog("end_block " + std::to_string(end_block));
-
+        fc::mutable_variant_object act;
         for (uint32_t i = start_block; i <= end_block; i++) {
             try {
                 auto block = cc.fetch_block_by_number(i);
                 elog("Current parse block:" + to_string(i));
-                parse_transactions_from_block(block);
+                act["action"] = to_string(DRR_TAG_ACTIONINFO);
+                act["type"] = to_string(DRR_TAG_ALLBLOCK);
+                parse_transactions_from_block(block, act);
 //                if (i >= 1600000)
 //                {
 //                    is_parse_blocks = false;
@@ -153,9 +176,11 @@ namespace eosio {
 
     }
 
-    void u_com_impl::parse_transactions_from_block(const eosio::chain::signed_block_ptr &block)
+    void u_com_impl::parse_transactions_from_block(const eosio::chain::signed_block_ptr &block,fc::mutable_variant_object &tags)
     {
 
+
+        fc::mutable_variant_object wrapper;
 
         auto ro_api = app().get_plugin<chain_plugin>().get_read_only_api();
 
@@ -202,21 +227,26 @@ namespace eosio {
                 }
             }
             var_block["transactions"] = fc::variant(trx_vector);
+            wrapper["package"]= tags;
+            wrapper["data"]= fc::variant(var_block);
+
             th = new std::thread([&](fc::mutable_variant_object mvar) {
                 SimplePocoHandler handler("localhost", 5672);
                 AMQP::Connection connection(&handler, AMQP::Login("guest", "guest"), "/");
                 AMQP::Channel channel(&connection);
 
                 channel.onReady([&]() {
-                        channel.publish("", "hello", fc::json::to_string(mvar));
                     if (handler.connected()) {
-                    } else {
+                        channel.publish("", "hello", fc::json::to_string(mvar));
                         handler.quit();
-                    }
+                    } else {
+//                        handler.quit();
                         elog("Handler not connected");
+                    }
+//                        elog("Handler not connected");
                 });
                 handler.loop();
-            },var_block);
+            },wrapper);
 
         }
     }
