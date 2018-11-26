@@ -79,7 +79,7 @@ namespace eosio {
 
         friend class uos_rates;
 
-        CSVWriter social_activity_log,transfer_activity_log;
+        CSVWriter social_activity_log,transfer_activity_log, social_trxs_log;
 
     private:
 
@@ -412,6 +412,11 @@ namespace eosio {
         social_activity_log.set_path(dump_dir.string());
         social_activity_log.set_filename(
                 std::string("social_activity_") + fc::variant(fc::time_point::now()).as_string() + ".csv");
+
+        social_trxs_log.set_write_enabled(dump_calc_data);
+        social_trxs_log.set_path(dump_dir.string());
+        social_trxs_log.set_filename(
+                "social_trxs_" + fc::variant(fc::time_point::now()).as_string() + ".csv");
 
         for (int i = start_block; i <= end_block; i++) {
             if (i % 1000000 == 0)
@@ -870,6 +875,17 @@ namespace eosio {
                 bins.binargs = action.data;
                 auto json = ro_api.abi_bin_to_json(bins);
                 auto object = json.args.get_object();
+
+                //serialize social transactions to file
+                fc::mutable_variant_object var_trx;
+                var_trx["transaction_id"]=fc::variant(transaction.id());
+                var_trx["block_num"] = fc::variant(std::to_string(block->block_num()));
+                var_trx["acc"] = action.account.to_string();
+                var_trx["action"] = action.name.to_string();
+                var_trx["data"] = json.args;
+                string str_json = fc::json::to_string(var_trx);
+                vector<string> vec_json{str_json};
+                social_trxs_log.addDatainRow(vec_json.begin(), vec_json.end());
 
 
                 if (action.name == N(usertouser)) {
