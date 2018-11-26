@@ -254,25 +254,59 @@ namespace eosio {
             string block_num_str = cons_rows.rows[0]["block_num"].as_string();
             string hash_str = cons_rows.rows[0]["hash"].as_string();
 
-            //get the results for this hash from the file
-            string filename = "result_" + block_num_str + "_" + hash_str + ".csv";
-            auto csv = read_csv_map(dump_dir.string() + "/" + filename);
+            //try to get results from json
+            string json_filename = "result_" + block_num_str + "_" + hash_str + ".json";
+            if(bfs::exists(dump_dir.string() + "/" + json_filename)){
+                ilog("getting results from json");
+                ifstream istr(dump_dir.string() + "/" + json_filename);
+                stringstream buffer;
+                buffer << istr.rdbuf();
+                string json = buffer.str();
 
-            //TODO if file not found request the results file from other nodes
+                auto variant_json = fc::json::from_string(json);
+                auto prev_result = result_set(variant_json);
 
-            for (auto i = 0; i < csv.size(); i++) {
+                for (auto item : prev_result.res_map)
+                {
+                    string name = item.second.name;
+                    string type = item.second.type;
+                    string cumulative_emission = item.second.current_cumulative_emission;
 
-                string name = csv[i]["name"];
-                string type = csv[i]["type"];
-                string cumulative_emission = csv[i]["current_cumulative_emission"];
+                    //skip all non-zero emission
+                    if (cumulative_emission == "0")
+                        continue;
 
-                //skip all non-zero emission
-                if (cumulative_emission == "0")
-                    continue;
+                    result.res_map[name].name = name;
+                    result.res_map[name].type = type;
+                    result.res_map[name].prev_cumulative_emission = cumulative_emission;
 
-                result.res_map[name].name = name;
-                result.res_map[name].type = type;
-                result.res_map[name].prev_cumulative_emission = cumulative_emission;
+                    ilog("name " + name + " cumulative emission " + cumulative_emission);
+                }
+                ilog("got results from json");
+                sleep(20);
+            }
+            //if there is no json get the results from csv
+            else {
+
+                string filename = "result_" + block_num_str + "_" + hash_str + ".csv";
+                auto csv = read_csv_map(dump_dir.string() + "/" + filename);
+
+                //TODO if file not found request the results file from other nodes
+
+                for (auto i = 0; i < csv.size(); i++) {
+
+                    string name = csv[i]["name"];
+                    string type = csv[i]["type"];
+                    string cumulative_emission = csv[i]["current_cumulative_emission"];
+
+                    //skip all non-zero emission
+                    if (cumulative_emission == "0")
+                        continue;
+
+                    result.res_map[name].name = name;
+                    result.res_map[name].type = type;
+                    result.res_map[name].prev_cumulative_emission = cumulative_emission;
+                }
             }
         }
         //if the previous result is not found, use the emission values from the old table
@@ -532,6 +566,19 @@ namespace eosio {
 
     void uos_rates_impl::save_result()
     {
+        //save to json
+        try {
+            string json_filename = "result_" + to_string(result.block_num) + "_" + result.result_hash + ".json";
+            auto res_var = result.to_variant();
+            auto res_json = fc::json::to_pretty_string(res_var);
+            fstream json_file;
+            json_file.open(dump_dir.string() + "/" + json_filename, ios::out | ios::app);
+            json_file << res_json;
+            json_file.close();
+        }
+        catch (exception &ex){ elog(ex.what()); }
+
+        //save to csv
         string filename = "result_" + to_string(result.block_num) + "_" + result.result_hash + ".csv";
         CSVWriter csv_result{filename};
         csv_result.set_write_enabled(true);
