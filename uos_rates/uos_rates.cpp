@@ -84,7 +84,8 @@ namespace eosio {
     private:
 
         int32_t period = 300*2;
-        int32_t window = 86400*2*100;
+        int32_t window = 86400*2*100;//100 days
+        int32_t activity_window = 86400*2*30; //30 days
         string contract_activity = "uos.activity";
         string contract_calculators = "uos.calcs";
         std::set<chain::account_name> calculators;
@@ -279,15 +280,11 @@ namespace eosio {
                     result.res_map[name].name = name;
                     result.res_map[name].type = type;
                     result.res_map[name].prev_cumulative_emission = cumulative_emission;
-
-                    ilog("name " + name + " cumulative emission " + cumulative_emission);
                 }
-                ilog("got results from json");
-                sleep(20);
             }
             //if there is no json get the results from csv
             else {
-
+                ilog("getting results from csv");
                 string filename = "result_" + block_num_str + "_" + hash_str + ".csv";
                 auto csv = read_csv_map(dump_dir.string() + "/" + filename);
 
@@ -380,8 +377,16 @@ namespace eosio {
         if (start_block < 1)
             start_block = 1;
 
+        int32_t activity_end_block = end_block;
+        int32_t activity_start_block = end_block - activity_window + 1;
+        if (activity_start_block < 1)
+            activity_start_block = 1;
+
         ilog("start_block " + std::to_string(start_block));
         ilog("end_block " + std::to_string(end_block));
+
+        ilog("activity_start_block " + std::to_string(activity_start_block));
+        ilog("activity_end_block " + std::to_string(activity_end_block));
 
 
         chain::controller &cc = app().get_plugin<chain_plugin>().chain();
@@ -393,6 +398,10 @@ namespace eosio {
         auto transfer_calculator =
                 singularity::rank_calculator_factory::create_calculator_for_transfer(params);
         singularity::gravity_index_calculator grv_calculator(0.1, 0.9, 100000000000);
+        singularity::activity_period act_period;
+        auto em_params = singularity::emission_parameters_t();
+        auto em_state = singularity::emission_state_t();
+        singularity::emission_calculator em_calculator(em_params, em_state);
 
         transfer_activity_log.set_write_enabled(dump_calc_data);
         transfer_activity_log.set_path(dump_dir.string());
@@ -412,6 +421,35 @@ namespace eosio {
                 auto social_interactions = parse_transactions_from_block(block, current_calc_block_num);
                 social_calculator->add_block(social_interactions);
                 transfer_calculator->add_block(my_transfer_interactions);
+
+                if(activity_start_block <= i && i <= activity_end_block){
+                    vector <singularity::transaction_t> activity_interactions;
+                    for (auto soc_item : social_interactions) {
+                        singularity::transaction_t tran(
+                                soc_item->get_weight(),
+                                0,
+                                soc_item->get_source(),
+                                soc_item->get_target(),
+                                time_t(0),
+                                0,
+                                0,
+                                soc_item->get_height());
+                        activity_interactions.emplace_back(tran);
+                    }
+                    for (auto tran_item :my_transfer_interactions) {
+                        singularity::transaction_t tran(
+                                tran_item->get_weight(),
+                                0,
+                                tran_item->get_source(),
+                                tran_item->get_target(),
+                                time_t(0),
+                                0,
+                                0,
+                                tran_item->get_height());
+                        activity_interactions.emplace_back(tran);
+                    }
+                    act_period.add_block(activity_interactions);
+                }
             }
             catch (std::exception e) {
                 elog(e.what());
@@ -428,11 +466,15 @@ namespace eosio {
 
         auto social_rates = social_calculator->calculate();
         auto transfer_rates = transfer_calculator->calculate();
+        auto activity = act_period.get_activity();
 
         ilog("social_rates.size()" + std::to_string(social_rates.size()) +
              " transfer_rates.size()" + std::to_string(transfer_rates.size()));
+        ilog("activity " + to_string((int64_t)activity));
+        sleep(10);
 
-
+        //set activity result
+        //result.current_activity = to_string((int64_t)activity;
 
         //set results for social rate");
         for (auto group : social_rates) {
