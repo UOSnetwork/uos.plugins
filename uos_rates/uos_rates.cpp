@@ -99,10 +99,11 @@ namespace eosio {
         double transfer_importance_share = 0.1;
         double stake_importance_share = 1.0 - social_importance_share - transfer_importance_share;
 
+        const uint8_t blocks_per_second = 2;
         const uint32_t seconds_per_year = 365*24*3600;
         const double yearly_emission_percent = 1.0;
         const int64_t initial_token_supply = 1000000000;
-        const uint8_t blocks_per_second = 2;
+        const double activity_monetary_value = 1000;
 
         bool dump_calc_data = false;
         bfs::path dump_dir;
@@ -399,9 +400,6 @@ namespace eosio {
                 singularity::rank_calculator_factory::create_calculator_for_transfer(params);
         singularity::gravity_index_calculator grv_calculator(0.1, 0.9, 100000000000);
         singularity::activity_period act_period;
-        auto em_params = singularity::emission_parameters_t();
-        auto em_state = singularity::emission_state_t();
-        singularity::emission_calculator em_calculator(em_params, em_state);
 
         transfer_activity_log.set_write_enabled(dump_calc_data);
         transfer_activity_log.set_path(dump_dir.string());
@@ -476,10 +474,9 @@ namespace eosio {
         ilog("social_rates.size()" + std::to_string(social_rates.size()) +
              " transfer_rates.size()" + std::to_string(transfer_rates.size()));
         ilog("activity " + to_string((int64_t)activity));
-        sleep(10);
 
-        //set activity result
-        //result.current_activity = to_string((int64_t)activity;
+        //set network activity results
+        result.current_activity = to_string((int64_t)activity);
 
         //set results for social rate");
         for (auto group : social_rates) {
@@ -487,7 +484,7 @@ namespace eosio {
             auto item_map = group.second;
             for (auto item : *item_map) {
                 string name = item.first;
-                string value = item.second.str(10);
+                string value = item.second.str(10,ios_base::fixed);
                 result.res_map[name].name = name;
                 result.res_map[name].type = group_name;
                 result.res_map[name].soc_rate = value;
@@ -497,7 +494,7 @@ namespace eosio {
             auto scaled_map = grv_calculator.scale_activity_index(*item_map);
             for (auto item : scaled_map) {
                 string name = item.first;
-                string value = item.second.str(10);
+                string value = item.second.str(10,ios_base::fixed);
 
                 result.res_map[name].soc_rate_scaled = value;
             }
@@ -509,7 +506,7 @@ namespace eosio {
             auto item_map = group.second;
             for (auto item : *item_map) {
                 string name = item.first;
-                string value = item.second.str(10);
+                string value = item.second.str(10,ios_base::fixed);
                 result.res_map[name].name = name;
                 result.res_map[name].type = group_name;
                 result.res_map[name].trans_rate = value;
@@ -520,7 +517,7 @@ namespace eosio {
 
             for (auto item : scaled_map) {
                 string name = item.first;
-                string value = item.second.str(10);
+                string value = item.second.str(10,ios_base::fixed);
 
                 result.res_map[name].trans_rate_scaled = value;
             }
@@ -571,20 +568,34 @@ namespace eosio {
             result.res_map[name].importance_scaled = ss.str();
         }
 
-        //set results for emission only for accounts");
-        double total_emission = initial_token_supply
-                                * yearly_emission_percent / 100
-                                / seconds_per_year
-                                * period / blocks_per_second;
+        //calculate current emission
+        singularity::emission_calculator_new em_calculator;
+        auto target_emission = em_calculator.get_target_emission(stod(result.current_activity), 0, activity_monetary_value);
+        ilog("target_emission " + target_emission.str(4,ios_base::fixed));
+        result.target_emission = target_emission.str(4,ios_base::fixed);
+        auto emission_limit = em_calculator.get_emission_limit(initial_token_supply, yearly_emission_percent, period/2);
+        ilog("emission_limit " + emission_limit.str(4,ios_base::fixed));
+        result.emission_limit = emission_limit.str(4,ios_base::fixed);
+        double cumulative_prev_emission = 0;
+        for(auto item : result.res_map){
+            cumulative_prev_emission += stod(item.second.prev_cumulative_emission);
+        }
+        ilog("cumulative_prev_emission " + to_string(cumulative_prev_emission));
+        auto current_emission = em_calculator.get_resulting_emission(
+                (double)target_emission - cumulative_prev_emission, emission_limit, 0.5);
+        ilog("current_emission " + current_emission.str(4, ios_base::fixed));
 
-        ilog("total_emission " + to_string(total_emission));
+
+        //set results for emission only for accounts");
+
+        ilog("current_emission " + current_emission.str(4,ios_base::fixed));
         for (auto item : result.res_map) {
             auto name = item.second.name;
 
             if (item.second.type != "ACCOUNT")
                 continue;
 
-            double emission = total_emission * stod(result.res_map[name].importance);
+            double emission = (double)current_emission * stod(result.res_map[name].importance);
             double cumulative_emission = stod(result.res_map[name].prev_cumulative_emission) + emission;
             stringstream ss;
             ss << fixed << setprecision(4) << emission;

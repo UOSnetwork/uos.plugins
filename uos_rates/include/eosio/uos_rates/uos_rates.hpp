@@ -54,6 +54,7 @@ namespace eosio {
         string max_activity = "0";
         string current_activity = "0";
         string target_emission = "0";
+        string emission_limit = "0";
 
         map<string, result_item> res_map;
         string result_hash;
@@ -68,6 +69,7 @@ namespace eosio {
             max_activity = v["max_activity"].as_string();
             current_activity = v["current_activity"].as_string();
             target_emission = v["target_emission"].as_string();
+            //try {emission_limit = v["emission_limit"].as_string();}catch (...){}
 
             result_hash = v["result_hash"].as_string();
 
@@ -103,6 +105,7 @@ namespace eosio {
             result["max_activity"] = max_activity;
             result["current_activity"] = current_activity;
             result["target_emission"] = target_emission;
+            result["emission_limit"] = emission_limit;
 
             result["result_hash"] = result_hash;
             fc::variants res_list;
