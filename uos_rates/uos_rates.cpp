@@ -685,6 +685,14 @@ namespace eosio {
 
 
     void uos_rates_impl::report_hash(){
+
+        auto branch = string(GIT_BRANCH);
+        auto commit_hash =  string(GIT_COMMIT_HASH);
+        auto lib_version = string(SINGULARITY_LIB_VERSION);
+        fc::mutable_variant_object version_info;
+        version_info["version"] = fc::variant(lib_version);
+        version_info["branch"] = fc::variant(branch);
+        version_info["commit_hash"] = fc::variant(commit_hash);
         for(auto calc_name : calculators) {
             ilog(calc_name.to_string() + " reportring hash " + result.result_hash +
                  " for block " + to_string(result.block_num));
@@ -692,7 +700,7 @@ namespace eosio {
             data.set("acc", calc_name.to_string());
             data.set("hash", result.result_hash);
             data.set("block_num", result.block_num);
-            data.set("memo", "v1");// version lib
+            data.set("memo", fc::json::to_string(version_info));// version lib
             string acc{"acc"};
             add_transaction(contract_calculators, "reporthash", data, calculator_public_key, calculator_private_key,
                             calc_name.to_string());
