@@ -21,9 +21,9 @@ namespace eosio {
     enum DRR_Tags
     {
         DRR_TAG_OWNERNAME = 1,
-        DRR_TAG_ACTIONINFO,
-        DRR_TAG_IRRBLOCK,
-        DRR_TAG_ALLBLOCK,
+        DRR_TAG_ACTIONINFO,//action
+        DRR_TAG_IRRBLOCK,//irreversible blocks
+        DRR_TAG_ALLBLOCK,//all blocks to current number
         DRR_TAG_DATAINFO,
         DRR_TAG_ERRMSG,
         DRR_TAG_INITIALPORT,
@@ -57,7 +57,7 @@ namespace eosio {
 
         void irreversible_block_catcher(const chain::block_state_ptr& bsp);
 
-        void  first_run_plugin();
+        void  parse_blocks();
         void  parse_transactions_from_block(const eosio::chain::signed_block_ptr &block, fc::mutable_variant_object &tags);
 
 
@@ -108,8 +108,10 @@ namespace eosio {
         string queue_host = "localhost";
         string queue_name = "hello";
         uint32_t queue_port = 5672;
-        string login = "guest";
-        string passwd = "guest";
+        string queue_login = "guest";
+        string queue_passwd = "guest";
+        uint32_t start_block = 1;
+        uint32_t end_block_parse = 1;
 
 
 
@@ -141,16 +143,21 @@ namespace eosio {
 
     }
 
-    void u_com_impl::first_run_plugin()
-    {
-        if(is_parse_blocks == false)
+    void u_com_impl::parse_blocks() {
+        if (is_parse_blocks == false)
             return;
 
         chain::controller &cc = app().get_plugin<chain_plugin>().chain();
-        uint32_t start_block = 1;
+
         auto current_head_block_number = cc.fork_db_head_block_num();
         elog("Current blocks number" + to_string(current_head_block_number));
-        uint32_t end_block =  current_head_block_number;
+        uint32_t end_block = current_head_block_number;
+        if (end_block_parse > current_head_block_number || end_block_parse == 1)
+            end_block = current_head_block_number;
+        if (end_block_parse < current_head_block_number && end_block_parse != 1)
+        end_block = end_block_parse;
+        if(start_block > current_head_block_number)
+             start_block = 1;
 
         ilog("start_block " + std::to_string(start_block));
         ilog("end_block " + std::to_string(end_block));
@@ -162,11 +169,6 @@ namespace eosio {
                 act["action"] = to_string(DRR_TAG_ACTIONINFO);
                 act["type"] = to_string(DRR_TAG_ALLBLOCK);
                 parse_transactions_from_block(block, act);
-//                if (i >= 1600000)
-//                {
-//                    is_parse_blocks = false;
-//                    break;
-//                }
             }
 
             catch (...) {
@@ -439,6 +441,8 @@ namespace eosio {
                 ("queue-host", boost::program_options::value<string>()->default_value("localhost"), "Host for queue" )
                 ("login", boost::program_options::value<string>()->default_value("guest"), "Login for cleints" )
                 ("passwd", boost::program_options::value<string>()->default_value("guest"), "Passwd for clients" )
+                ("start-block", boost::program_options::value<uint32_t >()->default_value(1), "First block for parse transaction" )
+                ("end-block", boost::program_options::value<uint32_t >()->default_value(1), "LAst block for parse transaction" )
                 ("parse-blocks", boost::program_options::value<bool>()->default_value(false), "Parse all blocks (to current) at start plugin get transactions" )
                 ;
     }
@@ -448,8 +452,10 @@ namespace eosio {
         my->queue_name = options.at("queue-name").as<string>();
         my->queue_port = options.at("queue-port").as<uint32_t >();
         my->queue_host = options.at("queue-host").as<string>();
-        my->passwd = options.at("passwd").as<string>();
-        my->login = options.at("login").as<string>();
+        my->queue_passwd = options.at("passwd").as<string>();
+        my->queue_login = options.at("login").as<string>();
+        my->start_block = options.at("start-block").as<uint32_t >();
+        my->end_block_parse = options.at("end-block").as<uint32_t >();
         my->is_parse_blocks = options.at("parse-blocks").as<bool>();
         my->th= nullptr;
 
@@ -464,7 +470,7 @@ namespace eosio {
             my->irreversible_block_catcher(bsp);
         });
 
-        my->first_run_plugin();
+        my->parse_blocks();
     }
 
     void u_com::plugin_shutdown() {
@@ -472,6 +478,6 @@ namespace eosio {
     }
 
     void u_com::irreversible_block_catcher(const eosio::chain::block_state_ptr &bst) { my->irreversible_block_catcher(bst);}
-    void u_com::first_run_plugin() { my->first_run_plugin();}
+    void u_com::parse_blocks() { my->parse_blocks();}
 
 }
