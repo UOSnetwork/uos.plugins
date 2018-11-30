@@ -29,6 +29,10 @@ namespace eosio {
 
         void accepted_block_catcher(const eosio::chain::block_state_ptr& asp);
 
+        fc::variants get_transactions(uint32_t last_block_num);
+
+        vector<fc::variant> get_transactions_from_block(uint32_t block_num);
+
         void save_userres(uint current_head_block_number);
 
         void update_from_prev_result(uint64_t current_calc_block);
@@ -141,14 +145,18 @@ namespace eosio {
 
         if(last_calc_block < current_calc_block_num) {
 
-            //perform the calculations
-            calculate_rates(current_calc_block_num);
+            auto trxs = get_transactions(current_calc_block_num);
 
-            //report the result hash
-            report_hash();
 
-            //save the result pack to file
-            save_result();
+
+//            //perform the calculations
+//            calculate_rates(current_calc_block_num);
+//
+//            //report the result hash
+//            report_hash();
+//
+//            //save the result pack to file
+//            save_result();
 
             last_calc_block = current_calc_block_num;
             return;
@@ -156,20 +164,20 @@ namespace eosio {
 
         if(last_setrate_block < current_calc_block_num)
         {
-            //find the consensus leader;
-            string leader = get_consensus_leader();
-            if (leader == "")
-                return;
-
-            //check if we have the leader among our calculators
-            if(calculators.find(leader) == calculators.end())
-                return;
-
-            //set all rates
-            set_rates();
-
-            //emission token for account's with rates
-            set_emission();
+//            //find the consensus leader;
+//            string leader = get_consensus_leader();
+//            if (leader == "")
+//                return;
+//
+//            //check if we have the leader among our calculators
+//            if(calculators.find(leader) == calculators.end())
+//                return;
+//
+//            //set all rates
+//            set_rates();
+//
+//            //emission token for account's with rates
+//            set_emission();
 
             last_setrate_block = current_calc_block_num;
             return;
@@ -190,6 +198,96 @@ namespace eosio {
             save_userres(current_head_block_number);
             ilog("staked balances snapshot saved for block " + to_string(current_head_block_number));
         }
+    }
+
+    fc::variants uos_rates_impl::get_transactions(uint32_t last_block_num) {
+        fc::variants result;
+        string transactions_cache_file = dump_dir.string() + "/transactions_cache.txt";
+        if(bfs::exists(transactions_cache_file)){
+            ifstream infile(transactions_cache_file);
+            string line;
+            while(getline(infile, line)){
+                auto variant_json = fc::json::from_string(line);
+                result.emplace_back(variant_json);
+            }
+            infile.close();
+        }
+
+        uint32_t start_block = 1;
+        if(result.size() > 0) {
+            string start_block_str = result.at(result.size()-1)["block_num"].as_string();
+            start_block =  (uint32_t)stoull(start_block_str);
+        }
+        for(uint32_t i = start_block; i <= last_block_num; i++){
+            vector<fc::variant> block_trx;
+
+            if(i % 1000000 == 0)
+                ilog(to_string(i));
+
+            try { block_trx = get_transactions_from_block(i); }
+            catch (...){elog("error on parsing block " + to_string(i));}
+
+
+            for(auto trx : block_trx){
+                result.emplace_back(trx);
+
+                string json = fc::json::to_string(trx);
+                ilog(json);
+                ofstream outfile(transactions_cache_file, ios_base::app | ios_base::out);
+                outfile << json + "\n";
+                outfile.close();
+            }
+        }
+
+        return result;
+    }
+
+    vector<fc::variant> uos_rates_impl::get_transactions_from_block(uint32_t block_num){
+        vector<fc::variant> result;
+
+        chain::controller &cc = app().get_plugin<chain_plugin>().chain();
+        auto block = cc.fetch_block_by_number(block_num);
+
+
+        auto ro_api = app().get_plugin<chain_plugin>().get_read_only_api();
+
+        for (auto trs : block->transactions) {
+
+            auto transaction = trs.trx.get<chain::packed_transaction>().get_transaction();
+            auto actions = transaction.actions;
+            for (auto action : actions) {
+
+                if (action.account != eosio::chain::string_to_name(contract_activity.c_str()) &&
+                    action.account != N(eosio.token))
+                    continue;
+
+                if(action.name != N(usertouser) &&
+                   action.name != N(makecontent) &&
+                   action.name != N(usertocont) &&
+                   action.name != N(makecontorg) &&
+                   action.name != N(transfer))
+                    continue;
+
+                chain_apis::read_only::abi_bin_to_json_params bins;
+                bins.code = action.account;
+                bins.action = action.name;
+                bins.binargs = action.data;
+                auto json = ro_api.abi_bin_to_json(bins);
+                auto object = json.args.get_object();
+
+                //serialize social transactions to file
+                fc::mutable_variant_object var_trx;
+                var_trx["transaction_id"]=fc::variant(transaction.id());
+                var_trx["block_num"] = fc::variant(std::to_string(block->block_num()));
+                var_trx["acc"] = action.account.to_string();
+                var_trx["action"] = action.name.to_string();
+                var_trx["data"] = json.args;
+
+                result.emplace_back(var_trx);
+            }
+        }
+
+        return result;
     }
 
     void uos_rates_impl::save_userres(uint current_head_block_number) {
