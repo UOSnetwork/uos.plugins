@@ -148,15 +148,17 @@ namespace eosio {
 
             auto trxs = get_transactions(current_calc_block_num);
 
-            uos::data_processor dp;
-            dp.current_calc_block = current_calc_block_num;
+            uos::data_processor dp(current_calc_block_num);
+
             dp.source_transactions = trxs;
 
-            ilog("started preparing relations");
             dp.convert_transactions_to_relations();
-            ilog("finished preparing relations");
 
+            dp.calculate_social_rates();
 
+            for(auto acc : dp.accounts){
+                ilog(acc.first + " " + acc.second["social_rate"].as_string());
+            }
 
 
 

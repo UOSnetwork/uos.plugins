@@ -22,6 +22,7 @@
 namespace uos {
     using namespace std;
     using namespace eosio;
+
     class data_processor {
 
     public:
@@ -36,12 +37,22 @@ namespace uos {
 
         vector<std::shared_ptr<singularity::relation_t>> activity_relations;
 
+        map<string, fc::mutable_variant_object> accounts;
+        map<string, fc::mutable_variant_object> content;
+
+        data_processor(uint32_t calc_block){
+            current_calc_block = calc_block;
+        }
 
         void convert_transactions_to_relations();
-
         vector<std::shared_ptr<singularity::relation_t>> parse_token_transaction(fc::variant trx);
-
         vector<std::shared_ptr<singularity::relation_t>> parse_social_transaction(fc::variant trx);
+
+        void calculate_social_rates();
+
+        static string to_string_10(double value);
+        static string to_string_10(singularity::double_type value);
+
     };
 
     void data_processor::convert_transactions_to_relations() {
@@ -150,5 +161,37 @@ namespace uos {
 
         return result;
     }
+
+    void data_processor::calculate_social_rates() {
+        singularity::parameters_t params;
+
+        auto social_calculator =
+                singularity::rank_calculator_factory::create_calculator_for_social_network(params);
+
+        social_calculator->add_block(social_relations);
+        auto social_rates = social_calculator->calculate();
+
+        for(auto item : *social_rates[singularity::ACCOUNT]){
+            if(accounts.find(item.first) == accounts.end())
+                accounts[item.first] = fc::mutable_variant_object();
+
+
+            accounts[item.first].set("social_rate", to_string_10(item.second));
+        }
+
+
+    }
+
+    string data_processor::to_string_10(double value) {
+        std::stringstream ss;
+        ss << std::fixed << std::setprecision(10) << value;
+        return ss.str();
+    }
+
+    string data_processor::to_string_10(singularity::double_type value) {
+        return value.str(10,ios_base::fixed);
+    }
+
+
 }
 
