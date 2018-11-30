@@ -148,6 +148,16 @@ namespace eosio {
 
             auto trxs = get_transactions(current_calc_block_num);
 
+            uos::data_processor dp;
+            dp.current_calc_block = current_calc_block_num;
+            dp.source_transactions = trxs;
+
+            ilog("started preparing relations");
+            dp.convert_transactions_to_relations();
+            ilog("finished preparing relations");
+
+
+
 
 
 //            //perform the calculations
@@ -216,8 +226,9 @@ namespace eosio {
 
         uint32_t start_block = 1;
         if(result.size() > 0) {
-            string start_block_str = result.at(result.size()-1)["block_num"].as_string();
-            start_block =  (uint32_t)stoull(start_block_str);
+            string last_block_str = result.at(result.size()-1)["block_num"].as_string();
+            auto last_block =  (uint32_t)stoull(last_block_str);
+            start_block = last_block + 1;
         }
         for(uint32_t i = start_block; i <= last_block_num; i++){
             vector<fc::variant> block_trx;
