@@ -1,6 +1,7 @@
 #include <eosio/uos_rates/uos_rates.hpp>
 #include <eosio/uos_rates/transaction_queqe.hpp>
 #include <eosio/uos_rates/merkle_tree.hpp>
+#include <eosio/uos_rates/data_processor.hpp>
 #include <eosio/chain/asset.hpp>
 #include <eosio/chain/exceptions.hpp>
 #include <eosio/chain_api_plugin/chain_api_plugin.hpp>
