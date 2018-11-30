@@ -282,6 +282,8 @@ namespace eosio {
         return new_result;
     }
 
+
+    ///!!!!
     void uos_rates_impl::calculate_rates(uint32_t current_calc_block_num) {
         result = get_result_stub(current_calc_block_num);
 
@@ -302,6 +304,7 @@ namespace eosio {
                 singularity::rank_calculator_factory::create_calculator_for_social_network(params);
         auto transfer_calculator =
                 singularity::rank_calculator_factory::create_calculator_for_transfer(params);
+
         singularity::gravity_index_calculator grv_calculator(0.1, 0.9, 100000000000);
 
         transfer_activity_log.set_write_enabled(dump_calc_data);
@@ -334,7 +337,7 @@ namespace eosio {
         std::map<node_type, string> node_type_names;
         node_type_names[node_type::ACCOUNT] = "ACCOUNT";
         node_type_names[node_type::CONTENT] = "CONTENT";
-        node_type_names[node_type::ORGANIZATION] = "ORGANIZATION";
+//        node_type_names[node_type::ORGANIZATION] = "ORGANIZATION";
 
         auto social_rates = social_calculator->calculate();
         auto transfer_rates = transfer_calculator->calculate();
@@ -725,9 +728,16 @@ namespace eosio {
                     //ilog("makecontent " + from + " " + to);
 
                     std::string s1 = ownership.get_target();
-                    vector<std::string> vec{block->timestamp.to_time_point(),std::to_string(block->block_num()),ownership.get_source(),s1,
-                                                 ownership.get_name(),std::to_string(ownership.get_height()),std::to_string(ownership.get_weight()),
-                                                 std::to_string(ownership.get_reverse_weight()),to_string_from_enum(ownership.get_source_type()),to_string_from_enum(ownership.get_target_type())};
+                    vector<std::string> vec{block->timestamp.to_time_point(),
+                                            std::to_string(block->block_num()),
+                                            ownership.get_source(),
+                                            s1,
+                                            ownership.get_name(),
+                                            std::to_string(ownership.get_height()),
+                                            std::to_string(ownership.get_weight()),
+                                            std::to_string(ownership.get_reverse_weight()),
+                                            to_string_from_enum(ownership.get_source_type()),
+                                            to_string_from_enum(ownership.get_target_type())};
                     social_activity_log.addDatainRow(vec.begin(),vec.end());
                 }
 
@@ -749,8 +759,16 @@ namespace eosio {
                         //ilog("usertocont " + from + " " + to);
 
                         std::string s1 = upvote.get_target();
-                        vector<std::string> vec{block->timestamp.to_time_point(),std::to_string(block->block_num()),upvote.get_source(),s1, upvote.get_name(),std::to_string(upvote.get_height()),std::to_string(upvote.get_weight()),
-                                                     std::to_string(upvote.get_reverse_weight()),to_string_from_enum(upvote.get_source_type()),to_string_from_enum(upvote.get_target_type())};
+                        vector<std::string> vec{block->timestamp.to_time_point(),
+                                                std::to_string(block->block_num()),
+                                                upvote.get_source(),
+                                                s1,
+                                                upvote.get_name(),
+                                                std::to_string(upvote.get_height()),
+                                                std::to_string(upvote.get_weight()),
+                                                std::to_string(upvote.get_reverse_weight()),
+                                                to_string_from_enum(upvote.get_source_type()),
+                                                to_string_from_enum(upvote.get_target_type())};
                         social_activity_log.addDatainRow(vec.begin(),vec.end());
                         vec.clear();
                     }
