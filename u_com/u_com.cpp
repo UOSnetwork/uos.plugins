@@ -24,6 +24,7 @@ namespace eosio {
         DRR_TAG_ACTIONINFO,//action
         DRR_TAG_IRRBLOCK,//irreversible blocks
         DRR_TAG_ALLBLOCK,//all blocks to current number
+        DRR_TAG_ACCBLOCK,//accepted blocks
         DRR_TAG_DATAINFO,
         DRR_TAG_ERRMSG,
         DRR_TAG_INITIALPORT,
@@ -56,9 +57,13 @@ namespace eosio {
     public:
 
         void irreversible_block_catcher(const chain::block_state_ptr& bsp);
+        void accepted_block_catcher(const eosio::chain::block_state_ptr& asp);
+        void parse_blocks();
+        void parse_transactions_from_block(const eosio::chain::signed_block_ptr &block, fc::mutable_variant_object &tags);
 
-        void  parse_blocks();
-        void  parse_transactions_from_block(const eosio::chain::signed_block_ptr &block, fc::mutable_variant_object &tags);
+        void userres(const uint current_head_block_number,string block_id);
+
+        void rpc_server();
 
 
         void run_trx_queue(uint64_t num);
@@ -143,6 +148,24 @@ namespace eosio {
 
     }
 
+    void u_com_impl::accepted_block_catcher(const eosio::chain::block_state_ptr &asp)
+    {
+
+        chain::controller &cc = app().get_plugin<chain_plugin>().chain();
+        auto ro_api = app().get_plugin<chain_plugin>().get_read_only_api();
+        chain_apis::read_only::get_block_params t;
+        auto current_head_block_number = cc.fork_db_head_block_num();
+        auto current_head_id_block = fc::variant(cc.fork_db_head_block_id()).as_string();
+        if(current_head_block_number % period == 0) { // period  equal blocks
+//        if(current_head_block_number % 50 == 0) {
+            //            ilog("Staked balances snapshot for block " + to_string(current_head_block_number)+" ID :" + current_head_id_block);
+            elog("Staked balances snapshot for block " + to_string(current_head_block_number)+" ID :" + current_head_id_block);
+            userres(current_head_block_number,current_head_id_block);
+        }
+    }
+
+
+
     void u_com_impl::parse_blocks() {
         if (is_parse_blocks == false)
             return;
@@ -150,7 +173,7 @@ namespace eosio {
         chain::controller &cc = app().get_plugin<chain_plugin>().chain();
 
         auto current_head_block_number = cc.fork_db_head_block_num();
-        elog("Current blocks number" + to_string(current_head_block_number));
+        ilog("Current blocks number" + to_string(current_head_block_number));
         uint32_t end_block = current_head_block_number;
         if (end_block_parse > current_head_block_number || end_block_parse == 1)
             end_block = current_head_block_number;
@@ -165,7 +188,7 @@ namespace eosio {
         for (uint32_t i = start_block; i <= end_block; i++) {
             try {
                 auto block = cc.fetch_block_by_number(i);
-                elog("Current parse block:" + to_string(i));
+                ilog("Current parse block:" + to_string(i));
                 act["action"] = to_string(DRR_TAG_ACTIONINFO);
                 act["type"] = to_string(DRR_TAG_ALLBLOCK);
                 parse_transactions_from_block(block, act);
@@ -177,6 +200,81 @@ namespace eosio {
         }
 
     }
+
+    void u_com_impl::userres(const uint current_head_block_number,string block_id)
+    {
+
+        fc::mutable_variant_object wrapper;
+
+        wrapper["action"] = to_string(DRR_TAG_ACTIONINFO);
+        wrapper["type"] =to_string(DRR_TAG_ACCBLOCK);
+        wrapper["blocknum"] = fc::variant(current_head_block_number);
+        wrapper["block_id"] = block_id;
+
+        chain::controller &cc = app().get_plugin<chain_plugin>().chain();
+        auto ro_api = app().get_plugin<chain_plugin>().get_read_only_api();
+        chain_apis::read_only::get_account_params params;
+
+        auto account_list = get_all_accounts();
+        fc::variants resources_vector;
+        fc::mutable_variant_object resource_user;
+        for (auto const acc_name:  account_list){
+            eosio::chain::name bn = acc_name;
+            params.account_name = bn;
+            asset val;
+            auto core_symbol = val.symbol_name();
+            try {
+                auto users_info = ro_api.get_account(params);
+                auto cpu_weight = to_string(users_info.cpu_weight);
+                auto net_weight = to_string(users_info.net_weight);
+                fc::mutable_variant_object  res_user;
+                res_user["cpu_weight"] = fc::variant(users_info.cpu_weight);
+                res_user["net_weight"] = fc::variant(users_info.net_weight);
+                resource_user[acc_name.to_string()]=fc::variant(res_user);
+
+                auto total_resorces = users_info.total_resources;
+//                elog("Account: " + acc_name.to_string() + " cpu_weight :" + cpu_weight + "Total resources : " );
+//                elog("Total resources: " + fc::json::to_string(total_resorces));
+            }
+            catch (exception &ex)
+            {
+                elog(ex.what());
+            }
+
+        }
+
+            if(th != nullptr){
+                if(th->joinable()) {
+                    th->join();
+                    delete (th);
+                }
+            }
+
+            wrapper["data"]= resource_user;
+
+            th = new std::thread([&](fc::mutable_variant_object mvar) {
+                SimplePocoHandler handler("localhost", 5672);
+                AMQP::Connection connection(&handler, AMQP::Login("guest", "guest"), "/");
+                AMQP::Channel channel(&connection);
+
+                channel.onReady([&]() {
+                    if (handler.connected()) {
+                        channel.publish("", "hello", fc::json::to_string(mvar));
+                        handler.quit();
+                    } else {
+                        elog("Handler not connected");
+                    }
+                });
+                handler.loop();
+            },wrapper);
+
+    }
+
+    void u_com_impl::rpc_server()
+    {
+        elog("Start rpc_server_command");
+    }
+
 
     void u_com_impl::parse_transactions_from_block(const eosio::chain::signed_block_ptr &block,fc::mutable_variant_object &tags)
     {
@@ -470,7 +568,13 @@ namespace eosio {
             my->irreversible_block_catcher(bsp);
         });
 
+        eosio::chain::controller &ac_block = app().get_plugin<eosio::chain_plugin>().chain();
+        ac_block.accepted_block.connect([this](const auto& asp){
+            my->accepted_block_catcher(asp);
+        });
+
         my->parse_blocks();
+        my->rpc_server();
     }
 
     void u_com::plugin_shutdown() {
@@ -479,5 +583,7 @@ namespace eosio {
 
     void u_com::irreversible_block_catcher(const eosio::chain::block_state_ptr &bst) { my->irreversible_block_catcher(bst);}
     void u_com::parse_blocks() { my->parse_blocks();}
+    void u_com::rpc_server() { my->rpc_server();}
 
+    void u_com::accepted_block_catcher(const eosio::chain::block_state_ptr &ast) { my->accepted_block_catcher(ast);}
 }

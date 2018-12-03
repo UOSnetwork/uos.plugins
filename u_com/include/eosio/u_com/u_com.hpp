@@ -19,7 +19,9 @@ namespace eosio {
         void plugin_shutdown();
 
         void irreversible_block_catcher(const chain::block_state_ptr& bst);
+        void accepted_block_catcher(const chain::block_state_ptr& ast);
         void parse_blocks();
+        void rpc_server();//command from u_com and next handler
 
     private:
         std::unique_ptr<class u_com_impl> my;
