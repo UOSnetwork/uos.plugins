@@ -155,9 +155,24 @@ namespace eosio {
             dp.convert_transactions_to_relations();
 
             dp.calculate_social_rates();
+            dp.calculate_transfer_rates();
 
-            for(auto acc : dp.accounts){
-                ilog(acc.first + " " + acc.second["social_rate"].as_string());
+            string filename = "acc_result_" + to_string(current_calc_block_num) + ".csv";
+            CSVWriter csv{filename};
+            csv.settings(true, dump_dir.string(), filename);
+
+            vector<string> header = {"name", "social_rate", "transfer_rate"};
+            csv.addDatainRow(header.begin(), header.end());
+
+            for(auto item : dp.accounts){
+                vector<string> vect_item;
+                vect_item.push_back(item.first);
+                for(auto column : header){
+                    if (column == "name") continue;
+                    string value = dp.get_acc_string_value(item.first, column);
+                    vect_item.push_back(value);
+                }
+                csv.addDatainRow(vect_item.begin(), vect_item.end());
             }
 
 

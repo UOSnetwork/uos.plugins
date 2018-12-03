@@ -50,7 +50,7 @@ namespace uos {
         vector<std::shared_ptr<singularity::relation_t>> parse_social_transaction(fc::variant trx);
 
         void calculate_social_rates();
-
+        void calculate_transfer_rates();
 
 
         static string to_string_10(double value);
@@ -186,6 +186,22 @@ namespace uos {
             if(content.find(item.first) == content.end())
                 content[item.first] = fc::mutable_variant_object();
             content[item.first].set("social_rate", to_string_10(item.second));
+        }
+    }
+
+    void data_processor::calculate_transfer_rates() {
+        singularity::parameters_t params;
+
+        auto transfer_calculator =
+                singularity::rank_calculator_factory::create_calculator_for_transfer(params);
+
+        transfer_calculator->add_block(transfer_relations);
+        auto transfer_rates = transfer_calculator->calculate();
+
+        for(auto item : *transfer_rates[singularity::ACCOUNT]){
+            if(accounts.find(item.first) == accounts.end())
+                accounts[item.first] = fc::mutable_variant_object();
+            accounts[item.first].set("transfer_rate", to_string_10(item.second));
         }
     }
 
