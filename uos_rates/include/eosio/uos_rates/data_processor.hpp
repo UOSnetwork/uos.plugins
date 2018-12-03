@@ -27,10 +27,11 @@ namespace uos {
 
     public:
 
-        fc::variants source_transactions;
-        uint32_t current_calc_block;
         uint32_t transaction_window = 100*86400*2;//100 days
         uint32_t activity_window = 30*86400*2; //30 days
+        uint32_t current_calc_block;
+
+        fc::variants source_transactions;
 
         vector<std::shared_ptr<singularity::relation_t>> transfer_relations;
         vector<std::shared_ptr<singularity::relation_t>> social_relations;
@@ -40,7 +41,7 @@ namespace uos {
         map<string, fc::mutable_variant_object> accounts;
         map<string, fc::mutable_variant_object> content;
 
-        data_processor(uint32_t calc_block){
+        explicit data_processor(uint32_t calc_block){
             current_calc_block = calc_block;
         }
 
@@ -50,9 +51,13 @@ namespace uos {
 
         void calculate_social_rates();
 
+
+
         static string to_string_10(double value);
         static string to_string_10(singularity::double_type value);
 
+        string get_acc_string_value(string acc_name, string value_name);
+        double get_acc_double_value(string acc_name, string value_name);
     };
 
     void data_processor::convert_transactions_to_relations() {
@@ -174,12 +179,14 @@ namespace uos {
         for(auto item : *social_rates[singularity::ACCOUNT]){
             if(accounts.find(item.first) == accounts.end())
                 accounts[item.first] = fc::mutable_variant_object();
-
-
             accounts[item.first].set("social_rate", to_string_10(item.second));
         }
 
-
+        for(auto item : *social_rates[singularity::CONTENT]){
+            if(content.find(item.first) == content.end())
+                content[item.first] = fc::mutable_variant_object();
+            content[item.first].set("social_rate", to_string_10(item.second));
+        }
     }
 
     string data_processor::to_string_10(double value) {
@@ -192,6 +199,20 @@ namespace uos {
         return value.str(10,ios_base::fixed);
     }
 
+    string data_processor::get_acc_string_value(std::string acc_name, std::string value_name) {
+        if(accounts.find(acc_name) == accounts.end())
+            return "0";
 
+        if(accounts[acc_name].find(value_name) == accounts[acc_name].end())
+            return "0";
+
+        auto str_value = accounts[acc_name][value_name].as_string();
+        return str_value;
+    }
+
+    double data_processor::get_acc_double_value(std::string acc_name, std::string value_name) {
+        auto str_value = get_acc_string_value(acc_name, value_name);
+        return stod(str_value);
+    }
 }
 
