@@ -146,22 +146,30 @@ namespace eosio {
 
         if(last_calc_block < current_calc_block_num) {
 
-            auto trxs = get_transactions(current_calc_block_num);
-
             uos::data_processor dp(current_calc_block_num);
 
+            auto trxs = get_transactions(current_calc_block_num);
             dp.source_transactions = trxs;
+
+            string snapshot_file = "snapshot_" + to_string(current_calc_block_num) + ".csv";
+            auto snapshot_map = read_csv_map(dump_dir.string() + "/" + snapshot_file);
+            dp.balance_snapshot = snapshot_map;
 
             dp.convert_transactions_to_relations();
 
             dp.calculate_social_rates();
             dp.calculate_transfer_rates();
+            dp.calculate_stake_rates();
 
             string filename = "acc_result_" + to_string(current_calc_block_num) + ".csv";
             CSVWriter csv{filename};
             csv.settings(true, dump_dir.string(), filename);
 
-            vector<string> header = {"name", "social_rate", "transfer_rate"};
+            vector<string> header = {"name",
+                                     "social_rate",
+                                     "transfer_rate",
+                                     "staked_balance",
+                                     "stake_rate"};
             csv.addDatainRow(header.begin(), header.end());
 
             for(auto item : dp.accounts){

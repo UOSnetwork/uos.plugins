@@ -32,6 +32,7 @@ namespace uos {
         uint32_t current_calc_block;
 
         fc::variants source_transactions;
+        vector<map<string,string>> balance_snapshot;
 
         vector<std::shared_ptr<singularity::relation_t>> transfer_relations;
         vector<std::shared_ptr<singularity::relation_t>> social_relations;
@@ -51,13 +52,14 @@ namespace uos {
 
         void calculate_social_rates();
         void calculate_transfer_rates();
-
+        void calculate_stake_rates();
 
         static string to_string_10(double value);
         static string to_string_10(singularity::double_type value);
 
         string get_acc_string_value(string acc_name, string value_name);
         double get_acc_double_value(string acc_name, string value_name);
+        long get_acc_long_value(string acc_name, string value_name);
     };
 
     void data_processor::convert_transactions_to_relations() {
@@ -205,6 +207,30 @@ namespace uos {
         }
     }
 
+    void data_processor::calculate_stake_rates() {
+
+        long total_stake = 0;
+        for(auto item : balance_snapshot){
+            if(accounts.find(item["name"]) == accounts.end())
+                accounts[item["name"]] = fc::mutable_variant_object();
+
+            string cpu_weight = item["cpu_weight"];
+            string net_weight = item["net_weight"];
+
+            if(cpu_weight == "-1") cpu_weight = "0";
+            if(net_weight == "-1") net_weight = "0";
+            long staked_balance = stol(cpu_weight) + stol(net_weight);
+            total_stake += staked_balance;
+
+            accounts[item["name"]].set("staked_balance", std::to_string(staked_balance));
+        }
+
+        for(auto acc : accounts){
+            double stake_rate = get_acc_double_value(acc.first,"staked_balance") / (double) total_stake;
+            accounts[acc.first].set("stake_rate", to_string_10(stake_rate));
+        }
+    }
+
     string data_processor::to_string_10(double value) {
         std::stringstream ss;
         ss << std::fixed << std::setprecision(10) << value;
@@ -229,6 +255,11 @@ namespace uos {
     double data_processor::get_acc_double_value(std::string acc_name, std::string value_name) {
         auto str_value = get_acc_string_value(acc_name, value_name);
         return stod(str_value);
+    }
+
+    long data_processor::get_acc_long_value(std::string acc_name, std::string value_name) {
+        auto str_value = get_acc_string_value(acc_name, value_name);
+        return stol(str_value);
     }
 }
 
