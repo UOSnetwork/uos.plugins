@@ -160,6 +160,7 @@ namespace eosio {
             dp.calculate_social_rates();
             dp.calculate_transfer_rates();
             dp.calculate_stake_rates();
+            dp.calculate_importance();
 
             string filename = "acc_result_" + to_string(current_calc_block_num) + ".csv";
             CSVWriter csv{filename};
@@ -169,7 +170,8 @@ namespace eosio {
                                      "social_rate",
                                      "transfer_rate",
                                      "staked_balance",
-                                     "stake_rate"};
+                                     "stake_rate",
+                                     "importance"};
             csv.addDatainRow(header.begin(), header.end());
 
             for(auto item : dp.accounts){

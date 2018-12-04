@@ -31,6 +31,10 @@ namespace uos {
         uint32_t activity_window = 30*86400*2; //30 days
         uint32_t current_calc_block;
 
+        double social_importance_share = 0.1;
+        double transfer_importance_share = 0.1;
+        double stake_importance_share = 1.0 - social_importance_share - transfer_importance_share;
+
         fc::variants source_transactions;
         vector<map<string,string>> balance_snapshot;
 
@@ -53,6 +57,7 @@ namespace uos {
         void calculate_social_rates();
         void calculate_transfer_rates();
         void calculate_stake_rates();
+        void calculate_importance();
 
         static string to_string_10(double value);
         static string to_string_10(singularity::double_type value);
@@ -228,6 +233,15 @@ namespace uos {
         for(auto acc : accounts){
             double stake_rate = get_acc_double_value(acc.first,"staked_balance") / (double) total_stake;
             accounts[acc.first].set("stake_rate", to_string_10(stake_rate));
+        }
+    }
+
+    void data_processor::calculate_importance() {
+        for (auto item : accounts){
+            double importance = get_acc_double_value(item.first, "social_rate") * social_importance_share +
+                                get_acc_double_value(item.first, "transfer_rate") * transfer_importance_share +
+                                get_acc_double_value(item.first, "stake_rate") * stake_importance_share;
+            accounts[item.first].set("importance", to_string_10(importance));
         }
     }
 
