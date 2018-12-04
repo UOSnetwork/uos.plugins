@@ -33,6 +33,8 @@ namespace eosio {
         DRR_TAG_LAST = 1001
     };
 
+    const char * s_DRR_Tags[] = {"ownername","actioninfo","irrblock","allblock","accblock"};
+
 
     bool is_valid_regex_string(const std::string& rgx_str)
     {
@@ -142,8 +144,8 @@ namespace eosio {
     void u_com_impl::irreversible_block_catcher(const eosio::chain::block_state_ptr &bsp) {
 
         fc::mutable_variant_object act;
-        act["action"] = to_string(DRR_TAG_ACTIONINFO);
-        act["type"] =to_string(DRR_TAG_IRRBLOCK);
+        act["action"]   = s_DRR_Tags[DRR_TAG_ACTIONINFO];
+        act["type"]     = s_DRR_Tags[DRR_TAG_IRRBLOCK];
         parse_transactions_from_block(bsp->block,act);
 
     }
@@ -189,8 +191,8 @@ namespace eosio {
             try {
                 auto block = cc.fetch_block_by_number(i);
                 ilog("Current parse block:" + to_string(i));
-                act["action"] = to_string(DRR_TAG_ACTIONINFO);
-                act["type"] = to_string(DRR_TAG_ALLBLOCK);
+                act["action"] = s_DRR_Tags[DRR_TAG_ACTIONINFO];
+                act["type"] = s_DRR_Tags[DRR_TAG_ALLBLOCK];
                 parse_transactions_from_block(block, act);
             }
 
@@ -206,8 +208,9 @@ namespace eosio {
 
         fc::mutable_variant_object wrapper;
 
-        wrapper["action"] = to_string(DRR_TAG_ACTIONINFO);
-        wrapper["type"] =to_string(DRR_TAG_ACCBLOCK);
+        wrapper["action"] = s_DRR_Tags[DRR_TAG_ACTIONINFO];
+        wrapper["type"]   = s_DRR_Tags[DRR_TAG_ACCBLOCK];
+        wrapper["command"] = "save_balance";
         wrapper["blocknum"] = fc::variant(current_head_block_number);
         wrapper["block_id"] = block_id;
 
@@ -301,7 +304,10 @@ namespace eosio {
             var_trx["transaction_id"]=fc::variant(transaction_id);
             fc::variants actions_vector;
             for (auto action : actions) {
-                if(action.account == N(eosio.token) || action.account == N(uos.activity) || action.account == N(uos.calcs)){
+                if(action.account == N(eosio.token)
+                   || action.account == N(uos.activity)
+//                   || action.account == N(uos.calcs)
+                        ){
                     fc::mutable_variant_object act;
 //                    act["block_timestamp"]=fc::variant(timestamp);
                     act["account"]=fc::variant(action.account);
@@ -327,8 +333,9 @@ namespace eosio {
                 }
             }
             var_block["transactions"] = fc::variant(trx_vector);
+            wrapper = var_block;
             wrapper["package"]= tags;
-            wrapper["data"]= fc::variant(var_block);
+
 
             th = new std::thread([&](fc::mutable_variant_object mvar) {
                 SimplePocoHandler handler("localhost", 5672);
