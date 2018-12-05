@@ -27,24 +27,43 @@ namespace uos {
 
     public:
 
+        //settings
+        int32_t period = 5*60*2;//5 minutes
         uint32_t transaction_window = 100*86400*2;//100 days
         uint32_t activity_window = 30*86400*2; //30 days
-        uint32_t current_calc_block;
 
         double social_importance_share = 0.1;
         double transfer_importance_share = 0.1;
         double stake_importance_share = 1.0 - social_importance_share - transfer_importance_share;
 
+        const double activity_monetary_value = 1000;
+        const uint8_t blocks_per_second = 2;
+        const double yearly_emission_percent = 1.0;
+        const int64_t initial_token_supply = 1000000000;
+
+        //input
+        uint32_t current_calc_block;
         fc::variants source_transactions;
         vector<map<string,string>> balance_snapshot;
+        map<string,string> prev_cumulative_emission;
+        string prev_max_network_activity = "0";
 
+        //intermediate
         vector<std::shared_ptr<singularity::relation_t>> transfer_relations;
         vector<std::shared_ptr<singularity::relation_t>> social_relations;
+        vector<singularity::transaction_t> activity_relations;
 
-        vector<std::shared_ptr<singularity::relation_t>> activity_relations;
-
+        //output
         map<string, fc::mutable_variant_object> accounts;
         map<string, fc::mutable_variant_object> content;
+
+        string network_activity;
+        string max_network_activity;
+        string full_prev_emission;
+        string target_emission;
+        string emission_limit;
+        string resulting_emission;
+        string real_resulting_emission;
 
         explicit data_processor(uint32_t calc_block){
             current_calc_block = calc_block;
@@ -59,6 +78,11 @@ namespace uos {
         void calculate_stake_rates();
         void calculate_importance();
 
+        void calculate_network_activity();
+        void calculate_emission();
+
+        static string to_string_4(double value);
+        static string to_string_4(singularity::double_type value);
         static string to_string_10(double value);
         static string to_string_10(singularity::double_type value);
 
@@ -101,7 +125,18 @@ namespace uos {
             if(block_num < activity_start_block || block_num > activity_end_block)
                 continue;
 
-            activity_relations.insert(activity_relations.end(), relations.begin(), relations.end());
+            for(auto rel : relations){
+                singularity::transaction_t tran(
+                        rel->get_weight(),
+                        0,
+                        rel->get_source(),
+                        rel->get_target(),
+                        time_t(0),
+                        0,
+                        0,
+                        rel->get_height());
+                activity_relations.emplace_back(tran);
+            }
         }
     }
 
@@ -243,6 +278,62 @@ namespace uos {
                                 get_acc_double_value(item.first, "stake_rate") * stake_importance_share;
             accounts[item.first].set("importance", to_string_10(importance));
         }
+    }
+
+    void data_processor::calculate_network_activity() {
+        singularity::activity_period act_period;
+        act_period.add_block(activity_relations);
+        auto activity = act_period.get_activity();
+        network_activity = to_string_10(activity);
+
+        double max_activity_d = stod(prev_max_network_activity);
+        if(stod(to_string_10(activity)) > max_activity_d)
+            max_activity_d = stod(to_string_10(activity));
+        max_network_activity = to_string_10(max_activity_d);
+    }
+
+    void data_processor::calculate_emission() {
+        singularity::emission_calculator_new em_calculator;
+        auto target_emission_d = em_calculator.get_target_emission(stod(network_activity), 0, activity_monetary_value);
+        target_emission = to_string_4(target_emission_d);
+        auto emission_limit_d = em_calculator.get_emission_limit(initial_token_supply,
+                                                               yearly_emission_percent,
+                                                               period / blocks_per_second);
+        emission_limit = to_string_4(emission_limit_d);
+
+        double full_prev_emission_d = 0;
+        for(auto item : prev_cumulative_emission){
+            if(accounts.find(item.first) == accounts.end())
+                accounts[item.first] = fc::mutable_variant_object();
+            accounts[item.first].set("prev_cumulative_emission", item.second);
+            full_prev_emission_d += stod(item.second);
+        }
+        full_prev_emission = to_string_4(full_prev_emission_d);
+
+        auto resulting_emission_d = em_calculator.get_resulting_emission(
+                stod(target_emission) - full_prev_emission_d, stod(emission_limit), 0.5);
+        resulting_emission = to_string_4(resulting_emission_d);
+
+
+        double real_resulting_emission_d = 0;
+        for(auto acc : accounts){
+            double current_emission_d = stod(resulting_emission) * get_acc_double_value(acc.first, "importance");
+            accounts[acc.first].set("current_emission", to_string_4(current_emission_d));
+            double cumulative_emission = get_acc_double_value(acc.first, "prev_cumulative_emission") +
+                                         get_acc_double_value(acc.first, "current_emission");
+            accounts[acc.first].set("current_cumulative_emission", to_string_4(cumulative_emission));
+        }
+        real_resulting_emission = to_string_4(real_resulting_emission_d);
+    }
+
+    string data_processor::to_string_4(double value) {
+        std::stringstream ss;
+        ss << std::fixed << std::setprecision(4) << value;
+        return ss.str();
+    }
+
+    string data_processor::to_string_4(singularity::double_type value) {
+        return value.str(4,ios_base::fixed);
     }
 
     string data_processor::to_string_10(double value) {

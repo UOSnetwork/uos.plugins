@@ -36,7 +36,9 @@ namespace eosio {
 
         void save_userres(uint current_head_block_number);
 
-        void update_from_prev_result(uint64_t current_calc_block);
+        map<string, string> get_previous_emission(uint64_t current_calc_block);
+
+        void set_previouos_emission(map<string, string> prev_emission);
 
         void update_from_snapshot(uint64_t current_calc_block);
 
@@ -155,12 +157,27 @@ namespace eosio {
             auto snapshot_map = read_csv_map(dump_dir.string() + "/" + snapshot_file);
             dp.balance_snapshot = snapshot_map;
 
+            auto prev_emission = get_previous_emission(current_calc_block_num);
+            dp.prev_cumulative_emission = prev_emission;
+
             dp.convert_transactions_to_relations();
 
             dp.calculate_social_rates();
             dp.calculate_transfer_rates();
             dp.calculate_stake_rates();
             dp.calculate_importance();
+
+            dp.calculate_network_activity();
+            dp.calculate_emission();
+
+            ilog("network_activity " + dp.network_activity);
+            ilog("max_network_activity " + dp.max_network_activity);
+            ilog("full_prev_emission " + dp.full_prev_emission);
+            ilog("target_emission " + dp.target_emission);
+            ilog("emission_limit " + dp.emission_limit);
+            ilog("resulting_emission " + dp.resulting_emission);
+            ilog("real_resulting_emission " + dp.real_resulting_emission);
+
 
             string filename = "acc_result_" + to_string(current_calc_block_num) + ".csv";
             CSVWriter csv{filename};
@@ -171,7 +188,10 @@ namespace eosio {
                                      "transfer_rate",
                                      "staked_balance",
                                      "stake_rate",
-                                     "importance"};
+                                     "importance",
+                                     "prev_cumulative_emission",
+                                     "current_emission",
+                                     "current_cumulative_emission"};
             csv.addDatainRow(header.begin(), header.end());
 
             for(auto item : dp.accounts){
@@ -372,7 +392,9 @@ namespace eosio {
         }
     }
 
-    void uos_rates_impl::update_from_prev_result(uint64_t current_calc_block){
+    map<string, string> uos_rates_impl::get_previous_emission(uint64_t current_calc_block) {
+
+        map<string, string> prev_emission;
 
         //check if there is consensus hash in the consensus table
         auto ro_api = app().get_plugin<chain_plugin>().get_read_only_api();
@@ -408,16 +430,17 @@ namespace eosio {
                 for (auto item : prev_result.res_map)
                 {
                     string name = item.second.name;
-                    string type = item.second.type;
+//                    string type = item.second.type;
                     string cumulative_emission = item.second.current_cumulative_emission;
 
                     //skip all non-zero emission
                     if (cumulative_emission == "0")
                         continue;
 
-                    result.res_map[name].name = name;
-                    result.res_map[name].type = type;
-                    result.res_map[name].prev_cumulative_emission = cumulative_emission;
+//                    result.res_map[name].name = name;
+//                    result.res_map[name].type = type;
+//                    result.res_map[name].prev_cumulative_emission = cumulative_emission;
+                    prev_emission[name] = cumulative_emission;
                 }
             }
             //if there is no json get the results from csv
@@ -431,16 +454,17 @@ namespace eosio {
                 for (auto i = 0; i < csv.size(); i++) {
 
                     string name = csv[i]["name"];
-                    string type = csv[i]["type"];
+//                    string type = csv[i]["type"];
                     string cumulative_emission = csv[i]["current_cumulative_emission"];
 
                     //skip all non-zero emission
                     if (cumulative_emission == "0")
                         continue;
 
-                    result.res_map[name].name = name;
-                    result.res_map[name].type = type;
-                    result.res_map[name].prev_cumulative_emission = cumulative_emission;
+//                    result.res_map[name].name = name;
+//                    result.res_map[name].type = type;
+//                    result.res_map[name].prev_cumulative_emission = cumulative_emission;
+                    prev_emission[name] = cumulative_emission;
                 }
             }
         }
@@ -468,10 +492,22 @@ namespace eosio {
                 ss << fixed << setprecision(4) << em_double;
                 string em_str_round =  ss.str();
 
-                result.res_map[acc].name = acc;
-                result.res_map[acc].type = "ACCOUNT";
-                result.res_map[acc].prev_cumulative_emission = em_str_round;
+//                result.res_map[acc].name = acc;
+//                result.res_map[acc].type = "ACCOUNT";
+//                result.res_map[acc].prev_cumulative_emission = em_str_round;
+                prev_emission[acc] = em_str_round;
             }
+        }
+
+        return prev_emission;
+    }
+
+    void uos_rates_impl::set_previouos_emission(std::map<eosio::string, eosio::string> prev_emission) {
+        for(auto item : prev_emission)
+        {
+            result.res_map[item.first].name = item.first;
+            result.res_map[item.first].type = "ACCOUNT";
+            result.res_map[item.first].prev_cumulative_emission = item.second;
         }
     }
 
@@ -507,7 +543,8 @@ namespace eosio {
 
     void uos_rates_impl::calculate_rates(uint32_t current_calc_block_num) {
         result = result_set(current_calc_block_num);
-        update_from_prev_result(current_calc_block_num);
+        auto prev_emission = get_previous_emission(current_calc_block_num);
+        set_previouos_emission(prev_emission);
         update_from_snapshot(current_calc_block_num);
 
         int32_t end_block = current_calc_block_num;
