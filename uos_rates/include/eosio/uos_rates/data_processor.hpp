@@ -322,6 +322,8 @@ namespace uos {
             double cumulative_emission = get_acc_double_value(acc.first, "prev_cumulative_emission") +
                                          get_acc_double_value(acc.first, "current_emission");
             accounts[acc.first].set("current_cumulative_emission", to_string_4(cumulative_emission));
+
+            real_resulting_emission_d += get_acc_double_value(acc.first, "current_emission");
         }
         real_resulting_emission = to_string_4(real_resulting_emission_d);
     }
