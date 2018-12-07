@@ -184,6 +184,8 @@ namespace eosio {
             dp.calculate_stake_rates();
             dp.calculate_importance();
 
+            dp.calculate_scaled_values();
+
             dp.calculate_network_activity();
             dp.calculate_emission();
 
@@ -208,7 +210,11 @@ namespace eosio {
                                      "importance",
                                      "prev_cumulative_emission",
                                      "current_emission",
-                                     "current_cumulative_emission"};
+                                     "current_cumulative_emission",
+                                     "scaled_social_rate",
+                                     "scaled_transfer_rate",
+                                     "scaled_stake_rate",
+                                     "scaled_importance"};
             csv.addDatainRow(header.begin(), header.end());
 
             for(auto item : dp.accounts){
@@ -222,7 +228,25 @@ namespace eosio {
                 csv.addDatainRow(vect_item.begin(), vect_item.end());
             }
 
+            string cont_res_filename = "cont_result_" + to_string(current_calc_block_num) + ".csv";
+            CSVWriter cr_csv{cont_res_filename};
+            cr_csv.settings(true, dump_dir.string(), cont_res_filename);
 
+            vector<string> cr_header = {"name",
+                                     "social_rate",
+                                     "scaled_social_rate"};
+            cr_csv.addDatainRow(cr_header.begin(), cr_header.end());
+
+            for(auto item : dp.content){
+                vector<string> vect_item;
+                vect_item.push_back(item.first);
+                for(auto column : cr_header){
+                    if (column == "name") continue;
+                    string value = dp.content[item.first][column].as_string();
+                    vect_item.push_back(value);
+                }
+                cr_csv.addDatainRow(vect_item.begin(), vect_item.end());
+            }
 
 //            //perform the calculations
 //            calculate_rates(current_calc_block_num);

@@ -78,6 +78,8 @@ namespace uos {
         void calculate_stake_rates();
         void calculate_importance();
 
+        void calculate_scaled_values();
+
         void calculate_network_activity();
         void calculate_emission();
 
@@ -277,6 +279,27 @@ namespace uos {
                                 get_acc_double_value(item.first, "transfer_rate") * transfer_importance_share +
                                 get_acc_double_value(item.first, "stake_rate") * stake_importance_share;
             accounts[item.first].set("importance", to_string_10(importance));
+        }
+    }
+
+    void data_processor::calculate_scaled_values() {
+        auto acc_count = accounts.size();
+        for(auto acc : accounts){
+            double scaled_social_rate = get_acc_double_value(acc.first, "social_rate") * acc_count;
+            double scaled_transfer_rate = get_acc_double_value(acc.first, "transfer_rate") * acc_count;
+            double scaled_stake_rate = get_acc_double_value(acc.first, "stake_rate") * acc_count;
+            double scaled_importance = get_acc_double_value(acc.first, "importance") * acc_count;
+
+            accounts[acc.first].set("scaled_social_rate", to_string_10(scaled_social_rate));
+            accounts[acc.first].set("scaled_transfer_rate", to_string_10(scaled_transfer_rate));
+            accounts[acc.first].set("scaled_stake_rate", to_string_10(scaled_stake_rate));
+            accounts[acc.first].set("scaled_importance", to_string_10(scaled_importance));
+        }
+
+        auto cont_count = content.size();
+        for(auto cont : content){
+            double scaled_social_rate = stod(content[cont.first]["social_rate"].as_string()) * cont_count;
+            content[cont.first].set("scaled_social_rate", to_string_10(scaled_social_rate));
         }
     }
 
