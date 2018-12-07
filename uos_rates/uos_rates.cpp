@@ -670,6 +670,7 @@ namespace eosio {
             catch (...) {
                 elog("Error on parsing block " + std::to_string(i));
             }
+            my_transfer_interactions.clear();
         }
         tr_int_old.close();
 
