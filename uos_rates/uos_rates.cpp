@@ -162,6 +162,23 @@ namespace eosio {
 
             dp.convert_transactions_to_relations();
 
+            string tr_new_filename = dump_dir.string() +
+                                     "/transfer_interactions_new_" +
+                                     to_string(current_calc_block_num)
+                                     + ".csv";
+            ofstream tr_int_new(tr_new_filename, ios_base::app | ios_base::out);
+            for(auto tr_int : dp.transfer_relations) {
+                string line =
+                        tr_int->get_name() + ";" +
+                        to_string(tr_int->get_height()) + ";" +
+                        tr_int->get_source() + ";" +
+                        tr_int->get_target() + ";" +
+                        to_string(tr_int->get_weight()) + ";";
+                ilog(line);
+                tr_int_new << line + "\n";
+            }
+            tr_int_new.close();
+
             dp.calculate_social_rates();
             dp.calculate_transfer_rates();
             dp.calculate_stake_rates();
@@ -590,14 +607,33 @@ namespace eosio {
         social_trxs_log.set_filename(
                 "social_trxs_" + fc::variant(fc::time_point::now()).as_string() + ".csv");
 
+        string tr_old_filename = dump_dir.string() +
+                                 "/transfer_interactions_old_" +
+                                 to_string(current_calc_block_num)
+                                 + ".csv";
+        ofstream tr_int_old(tr_old_filename, ios_base::app | ios_base::out);
+
         for (int i = start_block; i <= end_block; i++) {
             if (i % 1000000 == 0)
-                ilog("block " + to_string(i));
+                ilog("block " + to_string(i) +
+                     " my_transfer_interactions.size() "
+                     + to_string(my_transfer_interactions.size()));
             try {
                 auto block = cc.fetch_block_by_number(i);
                 auto social_interactions = parse_transactions_from_block(block, current_calc_block_num);
                 social_calculator->add_block(social_interactions);
                 transfer_calculator->add_block(my_transfer_interactions);
+
+                for(auto tr_int : my_transfer_interactions) {
+                    string line =
+                            tr_int->get_name() + ";" +
+                            to_string(tr_int->get_height()) + ";" +
+                            tr_int->get_source() + ";" +
+                            tr_int->get_target() + ";" +
+                            to_string(tr_int->get_weight()) + ";";
+                    ilog(line);
+                    tr_int_old << line + "\n";
+                }
 
                 if(activity_start_block <= i && i <= activity_end_block){
                     vector <singularity::transaction_t> activity_interactions;
@@ -635,6 +671,7 @@ namespace eosio {
                 elog("Error on parsing block " + std::to_string(i));
             }
         }
+        tr_int_old.close();
 
         std::map<node_type, string> node_type_names;
         node_type_names[node_type::ACCOUNT] = "ACCOUNT";
