@@ -32,7 +32,7 @@ namespace eosio {
         DRR_TAG_LAST = 1001
     };
 
-    const char *s_DRR_Tags[] = {"ownername", "actioninfo", "irrblock", "allblock", "accblock"};
+    const char *s_DRR_Tags[] = {"ownername", "actioninfo", "irrblock", "allblock", "accblock","datainfo","error","initial_port"};
 
 
     bool is_valid_regex_string(const std::string &rgx_str) {
@@ -51,6 +51,7 @@ namespace eosio {
 
     class u_com_impl {
         std::thread *th;
+        std::thread *th2;
 
     public:
 
@@ -205,20 +206,18 @@ namespace eosio {
     }
 
     void u_com_impl::userres(const uint current_head_block_number, string block_id) {
-
         fc::mutable_variant_object wrapper;
 
-        wrapper["action"] = s_DRR_Tags[DRR_TAG_ACTIONINFO];
-        wrapper["type"] = s_DRR_Tags[DRR_TAG_ACCBLOCK];
-        wrapper["command"] = "save_balance";
-        wrapper["blocknum"] = fc::variant(current_head_block_number);
+        wrapper["action"]   = fc::variant(s_DRR_Tags[DRR_TAG_ACTIONINFO]);
+        wrapper["type"]     = fc::variant(s_DRR_Tags[DRR_TAG_ACCBLOCK]);
+        wrapper["command"]  = string("save_balance");
+        wrapper["blocknum"] = current_head_block_number;
         wrapper["block_id"] = block_id;
-
-        chain::controller &cc = app().get_plugin<chain_plugin>().chain();
-        auto ro_api = app().get_plugin<chain_plugin>().get_read_only_api();
         chain_apis::read_only::get_account_params params;
-
         auto account_list = get_all_accounts();
+//        chain::controller &cc = app().get_plugin<chain_plugin>().chain();
+//
+        auto ro_api = app().get_plugin<chain_plugin>().get_read_only_api();
         fc::variants resources_vector;
         fc::mutable_variant_object resource_user;
         for (auto const acc_name:  account_list) {
@@ -245,16 +244,16 @@ namespace eosio {
 
         }
 
-        if (th != nullptr) {
-            if (th->joinable()) {
-                th->join();
-                delete (th);
+        if (th2 != nullptr) {
+            if (th2->joinable()) {
+                th2->join();
+                delete (th2);
             }
         }
 
         wrapper["data"] = resource_user;
 
-        th = new std::thread([&](fc::mutable_variant_object mvar) {
+        th2 = new std::thread([&](fc::mutable_variant_object mvar) {
             SimplePocoHandler handler("localhost", 5672);
             AMQP::Connection connection(&handler, AMQP::Login("guest", "guest"), "/");
             AMQP::Channel channel(&connection);
@@ -566,6 +565,7 @@ namespace eosio {
         my->end_block_parse = options.at("end-block").as<uint32_t>();
         my->is_parse_blocks = options.at("parse-blocks").as<bool>();
         my->th = nullptr;
+        my->th2 = nullptr;
 
 
     }
