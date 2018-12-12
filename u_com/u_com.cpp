@@ -31,8 +31,8 @@ namespace eosio {
         DRR_TAG_LAST = 1001
     };
 
-
     const char *s_DRR_Tags[] = {"ownername", "actioninfo", "irrblock", "allblock", "accblock","datainfo","error","initial_port"};
+
 
     bool is_valid_regex_string(const std::string& rgx_str)
     {
@@ -232,8 +232,8 @@ namespace eosio {
 
     }
 
-    void u_com_impl::userres(const uint current_head_block_number,string block_id)
-    {
+
+    void u_com_impl::userres(const uint current_head_block_number, string block_id) {
 
         fc::mutable_variant_object wrapper;
 
@@ -242,12 +242,11 @@ namespace eosio {
         wrapper["command"]  = string("save_balance");
         wrapper["blocknum"] = current_head_block_number;
         wrapper["block_id"] = block_id;
-
-        chain::controller &cc = app().get_plugin<chain_plugin>().chain();
-        auto ro_api = app().get_plugin<chain_plugin>().get_read_only_api();
         chain_apis::read_only::get_account_params params;
-
         auto account_list = get_all_accounts();
+//        chain::controller &cc = app().get_plugin<chain_plugin>().chain();
+//
+        auto ro_api = app().get_plugin<chain_plugin>().get_read_only_api();
         fc::variants resources_vector;
         fc::mutable_variant_object resource_user;
         for (auto const acc_name:  account_list){
@@ -280,6 +279,7 @@ namespace eosio {
                     th->join();
                     delete (th);
                 }
+
             }
 
             wrapper["data"] = resource_user;
@@ -666,9 +666,6 @@ namespace eosio {
             my->rpc_listen();
             my->accepted_block_catcher(asp);
         });
-
-
-
 
     }
 
