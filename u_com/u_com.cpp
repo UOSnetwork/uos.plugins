@@ -20,7 +20,6 @@ namespace eosio {
     using namespace std;
     using RB_client = function<void(fc::mutable_variant_object &data)>;
 
-    class u_com_impl;
     enum DRR_Tags
     {
         DRR_TAG_OWNERNAME = 1,
@@ -58,7 +57,6 @@ namespace eosio {
         channel.onReady([&]() {
             if (handler.connected()) {
                 channel.publish("", "hello", fc::json::to_string(data));
-//                elog("DATA:" +fc::json::to_string(data) );
                 handler.quit();
             } else {
                 elog("Handler not connected");
@@ -71,10 +69,9 @@ namespace eosio {
     static appbase::abstract_plugin& _u_com = app().register_plugin<u_com>();
 
     class u_com_impl {
-         thread *th,*th_data;
+         thread *th, *th_data;
          RB_client rb_res = rb_chanel_data;
          shared_ptr<thread_safe::threadsafe_queue<string>> q_from_rabbit;
-         std::recursive_mutex lock_rb_chanel;
 
     public:
 
@@ -183,8 +180,8 @@ namespace eosio {
         auto current_head_block_number = cc.fork_db_head_block_num();
         auto current_head_id_block = fc::variant(cc.fork_db_head_block_id()).as_string();
         //TODO: or period or each accepted  block
-//        if(current_head_block_number % period == 0) { // period  equal blocks
-        if(current_head_block_number % 100 == 0) {
+        if(current_head_block_number % period == 0) { // period  equal blocks
+//        if(current_head_block_number % 100 == 0) {
             //            ilog("Staked balances snapshot for block " + to_string(current_head_block_number)+" ID :" + current_head_id_block);
             elog("Staked balances snapshot for block " + to_string(current_head_block_number)+" ID :" + current_head_id_block);
             userres(current_head_block_number,current_head_id_block);
@@ -211,7 +208,6 @@ namespace eosio {
 
         ilog("start_block " + std::to_string(start_block));
         ilog("end_block " + std::to_string(end_block));
-        sleep(1);
 
         fc::mutable_variant_object act;
         for (uint32_t i = start_block; i <= end_block; i++) {
@@ -220,8 +216,6 @@ namespace eosio {
                 ilog("Current parse block:" + to_string(i));
                 act["action"] = s_DRR_Tags[DRR_TAG_ACTIONINFO];
                 act["type"] = s_DRR_Tags[DRR_TAG_ALLBLOCK];
-//                if(i == 1600000)
-//                    break;
                 parse_transactions_from_block(block, act);
             }
 
@@ -264,7 +258,6 @@ namespace eosio {
                 resource_user[acc_name.to_string()]=fc::variant(res_user);
 
                 auto total_resorces = users_info.total_resources;
-//                elog("Account: " + acc_name.to_string() + " cpu_weight :" + cpu_weight + "Total resources : " );
 //                elog("Total resources: " + fc::json::to_string(total_resorces));
             }
             catch (exception &ex)
@@ -296,6 +289,14 @@ namespace eosio {
                 elog("RECIEVED COMMAND" + temp);
                 auto block = fc::json::from_string(temp);
                 if ((block.get_object().contains("parse"))) {
+                    if ((block.get_object().contains("start_block"))) {
+                        start_block = block["start_block"].as_uint64();
+                        ilog("Start block" + to_string(start_block));
+                    }
+                    if ((block.get_object().contains("end_block"))) {
+                        end_block_parse = block["end_block"].as_uint64();
+                        ilog("End  block" + to_string(end_block_parse));
+                    }
                     try {
                         parse_blocks();
                     }
@@ -308,12 +309,9 @@ namespace eosio {
             }
         }
         catch (exception &ex) {
-            elog("Error in rabbit_queue");
             elog(ex.what());
 
         }
-
-
     }
 
     void u_com_impl::rpc_server()
@@ -350,7 +348,6 @@ namespace eosio {
                 if(action.account == N(eosio.token) || action.account == N(uos.activity) || action.account == N(uos.calcs)){
                     if( action.name != N(setrate)) {
                         fc::mutable_variant_object act;
-//                    act["block_timestamp"]=fc::variant(timestamp);
                         act["account"] = fc::variant(action.account);
                         act["action"] = fc::variant(action.name);
                         act["data"] = ro_api.abi_bin_to_json({action.account, action.name, action.data}).args;
@@ -366,7 +363,6 @@ namespace eosio {
             var_trx["actions"].clear();
         }
 
-        try{
         if(found_action) {
             if (th_data != nullptr) {
                 if (th_data->joinable()) {
@@ -381,11 +377,7 @@ namespace eosio {
             th_data = new std::thread([&](fc::mutable_variant_object data) { rb_chanel(data);},wrapper);
 //            th_data = new std::thread([&](fc::mutable_variant_object data) { rb_res(data);},wrapper);
         }
-        }
-        catch (exception &ex)
-        {
-             elog(ex.what());
-        }
+
     }
 
 
@@ -442,7 +434,6 @@ namespace eosio {
 
     void u_com_impl::rb_chanel(fc::mutable_variant_object data)
     {
-//            std::lock_guard<std::recursive_mutex> locker(lock_rb_chanel);
 
         try {
             SimplePocoHandler handler(queue_host, queue_port);
@@ -473,23 +464,18 @@ namespace eosio {
         q_from_rabbit = make_shared<thread_safe::threadsafe_queue<string>>();
 
         /// 1-st thread starts
-        try {
-            thread t_rabbit([&](shared_ptr<thread_safe::threadsafe_queue<string>> queue_rabbit) {
+        thread t_rabbit([&](shared_ptr<thread_safe::threadsafe_queue<string>> queue_rabbit) {
 
-                uos::rabbitmq_worker rabbitmq_input(queue_rabbit, "localhost", 5672, "guest", "guest", "/", "rpc_queue");
-                elog("CREATE shared pointer");
-                elog("CREATE rabbit input");
-                rabbitmq_input.run();
-            }, q_from_rabbit);
+            //TODO:param to queue
+            uos::rabbitmq_worker rabbitmq_input(queue_rabbit, "localhost", 5672, "guest", "guest", "/",
+                                                "rpc_queue");
+            rabbitmq_input.run();
+        }, q_from_rabbit);
 
-            if (t_rabbit.joinable())
-                t_rabbit.detach();
-        }
-        catch (exception &ex) {
-            elog(ex.what());
+        if (t_rabbit.joinable())
+            t_rabbit.detach();
 
-        }
-        elog("Rabbit runs away!");
+        ilog("Rabbit runs away!");
 
     }
 
