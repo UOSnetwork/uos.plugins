@@ -189,6 +189,8 @@ namespace eosio {
             dp.calculate_network_activity();
             dp.calculate_emission();
 
+            dp.calculate_hash();
+
             ilog("network_activity " + dp.network_activity);
             ilog("max_network_activity " + dp.max_network_activity);
             ilog("full_prev_emission " + dp.full_prev_emission);
@@ -196,6 +198,8 @@ namespace eosio {
             ilog("emission_limit " + dp.emission_limit);
             ilog("resulting_emission " + dp.resulting_emission);
             ilog("real_resulting_emission " + dp.real_resulting_emission);
+
+            ilog("result_hash" + dp.result_hash);
 
 
             string filename = "acc_result_" + to_string(current_calc_block_num) + ".csv";

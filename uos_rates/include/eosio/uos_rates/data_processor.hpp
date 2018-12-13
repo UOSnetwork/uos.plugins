@@ -2,7 +2,7 @@
 
 #include <eosio/uos_rates/uos_rates.hpp>
 //#include <eosio/uos_rates/transaction_queqe.hpp>
-//#include <eosio/uos_rates/merkle_tree.hpp>
+#include <eosio/uos_rates/merkle_tree.hpp>
 //#include <eosio/chain/asset.hpp>
 //#include <eosio/chain/exceptions.hpp>
 //#include <eosio/chain_api_plugin/chain_api_plugin.hpp>
@@ -65,6 +65,8 @@ namespace uos {
         string resulting_emission;
         string real_resulting_emission;
 
+        string result_hash;
+
         explicit data_processor(uint32_t calc_block){
             current_calc_block = calc_block;
         }
@@ -82,6 +84,8 @@ namespace uos {
 
         void calculate_network_activity();
         void calculate_emission();
+
+        void calculate_hash();
 
         static string to_string_4(double value);
         static string to_string_4(singularity::double_type value);
@@ -349,6 +353,20 @@ namespace uos {
             real_resulting_emission_d += get_acc_double_value(acc.first, "current_emission");
         }
         real_resulting_emission = to_string_4(real_resulting_emission_d);
+    }
+
+    void data_processor::calculate_hash() {
+        uos::merkle_tree<string> mtree;
+        vector< pair< string, string> > mt_input;
+        for(auto acc : accounts){
+
+            string str_statement = "emission " + acc.first +
+                                   " " + get_acc_string_value(acc.first, "current_cumulative_emission");
+            mt_input.emplace_back(make_pair(str_statement, str_statement));
+        }
+        mtree.set_accounts(mt_input);
+        mtree.count_tree();
+        result_hash = string(mtree.nodes_list[mtree.nodes_list.size() - 1][0]);
     }
 
     string data_processor::to_string_4(double value) {
