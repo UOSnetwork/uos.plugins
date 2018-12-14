@@ -287,7 +287,13 @@ namespace uos {
     }
 
     void data_processor::calculate_scaled_values() {
-        auto acc_count = accounts.size();
+        //auto acc_count = accounts.size();
+        ///for acc_count use only accounts with non-zero social_rate
+        int acc_count = 0;
+        for(auto acc : accounts){
+            if(get_acc_string_value(acc.first, "social_rate") != "0")
+                acc_count++;
+        }
         for(auto acc : accounts){
             double scaled_social_rate = get_acc_double_value(acc.first, "social_rate") * acc_count;
             double scaled_transfer_rate = get_acc_double_value(acc.first, "transfer_rate") * acc_count;
