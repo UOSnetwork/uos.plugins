@@ -57,9 +57,6 @@ namespace eosio {
 
         vector<std::string> get_all_accounts();
 
-        vector<std::shared_ptr<singularity::relation_t>> parse_transactions_from_block(
-                eosio::chain::signed_block_ptr block, uint32_t current_calc_block);
-
         void run_transaction(
                 string account,
                 string action,
@@ -148,118 +145,14 @@ namespace eosio {
 
         if(last_calc_block < current_calc_block_num) {
 
-            uos::data_processor dp(current_calc_block_num);
+            //perform the calculations
+            calculate_rates(current_calc_block_num);
 
-            auto trxs = get_transactions(current_calc_block_num);
-            dp.source_transactions = trxs;
+            //report the result hash
+            report_hash();
 
-            string snapshot_file = "snapshot_" + to_string(current_calc_block_num) + ".csv";
-            auto snapshot_map = read_csv_map(dump_dir.string() + "/" + snapshot_file);
-            dp.balance_snapshot = snapshot_map;
-
-            auto prev_emission = get_previous_emission(current_calc_block_num);
-            dp.prev_cumulative_emission = prev_emission;
-
-            dp.convert_transactions_to_relations();
-
-            string tr_new_filename = dump_dir.string() +
-                                     "/transfer_interactions_new_" +
-                                     to_string(current_calc_block_num)
-                                     + ".csv";
-            ofstream tr_int_new(tr_new_filename, ios_base::app | ios_base::out);
-            for(auto tr_int : dp.transfer_relations) {
-                string line =
-                        tr_int->get_name() + ";" +
-                        to_string(tr_int->get_height()) + ";" +
-                        tr_int->get_source() + ";" +
-                        tr_int->get_target() + ";" +
-                        to_string(tr_int->get_weight()) + ";";
-                ilog(line);
-                tr_int_new << line + "\n";
-            }
-            tr_int_new.close();
-
-            dp.calculate_social_rates();
-            dp.calculate_transfer_rates();
-            dp.calculate_stake_rates();
-            dp.calculate_importance();
-
-            dp.calculate_scaled_values();
-
-            dp.calculate_network_activity();
-            dp.calculate_emission();
-
-            dp.calculate_hash();
-
-            ilog("network_activity " + dp.network_activity);
-            ilog("max_network_activity " + dp.max_network_activity);
-            ilog("full_prev_emission " + dp.full_prev_emission);
-            ilog("target_emission " + dp.target_emission);
-            ilog("emission_limit " + dp.emission_limit);
-            ilog("resulting_emission " + dp.resulting_emission);
-            ilog("real_resulting_emission " + dp.real_resulting_emission);
-
-            ilog("result_hash" + dp.result_hash);
-
-
-            string filename = "acc_result_" + to_string(current_calc_block_num) + ".csv";
-            CSVWriter csv{filename};
-            csv.settings(true, dump_dir.string(), filename);
-
-            vector<string> header = {"name",
-                                     "social_rate",
-                                     "transfer_rate",
-                                     "staked_balance",
-                                     "stake_rate",
-                                     "importance",
-                                     "prev_cumulative_emission",
-                                     "current_emission",
-                                     "current_cumulative_emission",
-                                     "scaled_social_rate",
-                                     "scaled_transfer_rate",
-                                     "scaled_stake_rate",
-                                     "scaled_importance"};
-            csv.addDatainRow(header.begin(), header.end());
-
-            for(auto item : dp.accounts){
-                vector<string> vect_item;
-                vect_item.push_back(item.first);
-                for(auto column : header){
-                    if (column == "name") continue;
-                    string value = dp.get_acc_string_value(item.first, column);
-                    vect_item.push_back(value);
-                }
-                csv.addDatainRow(vect_item.begin(), vect_item.end());
-            }
-
-            string cont_res_filename = "cont_result_" + to_string(current_calc_block_num) + ".csv";
-            CSVWriter cr_csv{cont_res_filename};
-            cr_csv.settings(true, dump_dir.string(), cont_res_filename);
-
-            vector<string> cr_header = {"name",
-                                     "social_rate",
-                                     "scaled_social_rate"};
-            cr_csv.addDatainRow(cr_header.begin(), cr_header.end());
-
-            for(auto item : dp.content){
-                vector<string> vect_item;
-                vect_item.push_back(item.first);
-                for(auto column : cr_header){
-                    if (column == "name") continue;
-                    string value = dp.content[item.first][column].as_string();
-                    vect_item.push_back(value);
-                }
-                cr_csv.addDatainRow(vect_item.begin(), vect_item.end());
-            }
-
-//            //perform the calculations
-//            calculate_rates(current_calc_block_num);
-//
-//            //report the result hash
-//            report_hash();
-//
-//            //save the result pack to file
-//            save_result();
+            //save the result pack to file
+            save_result();
 
             last_calc_block = current_calc_block_num;
             return;
@@ -267,20 +160,20 @@ namespace eosio {
 
         if(last_setrate_block < current_calc_block_num)
         {
-//            //find the consensus leader;
-//            string leader = get_consensus_leader();
-//            if (leader == "")
-//                return;
-//
-//            //check if we have the leader among our calculators
-//            if(calculators.find(leader) == calculators.end())
-//                return;
-//
-//            //set all rates
-//            set_rates();
-//
-//            //emission token for account's with rates
-//            set_emission();
+            //find the consensus leader;
+            string leader = get_consensus_leader();
+            if (leader == "")
+                return;
+
+            //check if we have the leader among our calculators
+            if(calculators.find(leader) == calculators.end())
+                return;
+
+            //set all rates
+            set_rates();
+
+            //emission token for account's with rates
+            set_emission();
 
             last_setrate_block = current_calc_block_num;
             return;
@@ -587,279 +480,84 @@ namespace eosio {
     }
 
     void uos_rates_impl::calculate_rates(uint32_t current_calc_block_num) {
-        result = result_set(current_calc_block_num);
+        uos::data_processor dp(current_calc_block_num);
+
+        //input transactions
+        auto trxs = get_transactions(current_calc_block_num);
+        dp.source_transactions = trxs;
+
+        //input staked balances snapshot
+        string snapshot_file = "snapshot_" + to_string(current_calc_block_num) + ".csv";
+        auto snapshot_map = read_csv_map(dump_dir.string() + "/" + snapshot_file);
+        dp.balance_snapshot = snapshot_map;
+
+        //input previous emission values
         auto prev_emission = get_previous_emission(current_calc_block_num);
-        set_previouos_emission(prev_emission);
-        update_from_snapshot(current_calc_block_num);
+        dp.prev_cumulative_emission = prev_emission;
 
-        int32_t end_block = current_calc_block_num;
-        int32_t start_block = end_block - window + 1;
-        if (start_block < 1)
-            start_block = 1;
+        //interactions format conversion
+        dp.convert_transactions_to_relations();
 
-        int32_t activity_end_block = end_block;
-        int32_t activity_start_block = end_block - activity_window + 1;
-        if (activity_start_block < 1)
-            activity_start_block = 1;
+        //calculations of the rates and importance
+        dp.calculate_social_rates();
+        dp.calculate_transfer_rates();
+        dp.calculate_stake_rates();
+        dp.calculate_importance();
+        dp.calculate_scaled_values();
 
-        ilog("start_block " + std::to_string(start_block));
-        ilog("end_block " + std::to_string(end_block));
+        //calculations of the emission
+        dp.calculate_network_activity();
+        dp.calculate_emission();
 
-        ilog("activity_start_block " + std::to_string(activity_start_block));
-        ilog("activity_end_block " + std::to_string(activity_end_block));
+        //hash
+        dp.calculate_hash();
 
 
-        chain::controller &cc = app().get_plugin<chain_plugin>().chain();
+        //convert to the result format
+        result = result_set(current_calc_block_num);
 
-        //activity calculator for social interactions
-        singularity::parameters_t params;
-        auto social_calculator =
-                singularity::rank_calculator_factory::create_calculator_for_social_network(params);
-        auto transfer_calculator =
-                singularity::rank_calculator_factory::create_calculator_for_transfer(params);
-        singularity::gravity_index_calculator grv_calculator(0.1, 0.9, 100000000000);
-        singularity::activity_period act_period;
+        for(auto acc : dp.accounts){
+            auto name = acc.first;
 
-        transfer_activity_log.set_write_enabled(dump_calc_data);
-        transfer_activity_log.set_path(dump_dir.string());
-        transfer_activity_log.set_filename(
-                std::string("transaction_") + fc::variant(fc::time_point::now()).as_string() + ".csv");
+            result_item item;
+            item.name = name;
+            item.type = "ACCOUNT";
 
-        social_activity_log.set_write_enabled(dump_calc_data);
-        social_activity_log.set_path(dump_dir.string());
-        social_activity_log.set_filename(
-                std::string("social_activity_") + fc::variant(fc::time_point::now()).as_string() + ".csv");
+            item.soc_rate = dp.get_acc_string_value(name, "social_rate");
+            item.soc_rate_scaled = dp.get_acc_string_value(name, "scaled_social_rate");
+            item.trans_rate = dp.get_acc_string_value(name, "transfer_rate");
+            item.trans_rate_scaled = dp.get_acc_string_value(name, "scaled_transfer_rate");
+            item.staked_balance = dp.get_acc_string_value(name, "staked_balance");
+            item.stake_rate = dp.get_acc_string_value(name, "stake_rate");
+            item.stake_rate_scaled = dp.get_acc_string_value(name, "scaled_stake_rate");
+            item.importance = dp.get_acc_string_value(name, "importance");
+            item.importance_scaled = dp.get_acc_string_value(name, "scaled_importance");
+            item.prev_cumulative_emission = dp.get_acc_string_value(name, "prev_cumulative_emission");
+            item.current_emission = dp.get_acc_string_value(name, "current_emission");
+            item.current_cumulative_emission = dp.get_acc_string_value(name, "current_cumulative_emission");
 
-        social_trxs_log.set_write_enabled(dump_calc_data);
-        social_trxs_log.set_path(dump_dir.string());
-        social_trxs_log.set_filename(
-                "social_trxs_" + fc::variant(fc::time_point::now()).as_string() + ".csv");
-
-        string tr_old_filename = dump_dir.string() +
-                                 "/transfer_interactions_old_" +
-                                 to_string(current_calc_block_num)
-                                 + ".csv";
-        ofstream tr_int_old(tr_old_filename, ios_base::app | ios_base::out);
-
-        for (int i = start_block; i <= end_block; i++) {
-            if (i % 1000000 == 0)
-                ilog("block " + to_string(i) +
-                     " my_transfer_interactions.size() "
-                     + to_string(my_transfer_interactions.size()));
-            try {
-                auto block = cc.fetch_block_by_number(i);
-                auto social_interactions = parse_transactions_from_block(block, current_calc_block_num);
-                social_calculator->add_block(social_interactions);
-                transfer_calculator->add_block(my_transfer_interactions);
-
-                for(auto tr_int : my_transfer_interactions) {
-                    string line =
-                            tr_int->get_name() + ";" +
-                            to_string(tr_int->get_height()) + ";" +
-                            tr_int->get_source() + ";" +
-                            tr_int->get_target() + ";" +
-                            to_string(tr_int->get_weight()) + ";";
-                    ilog(line);
-                    tr_int_old << line + "\n";
-                }
-
-                if(activity_start_block <= i && i <= activity_end_block){
-                    vector <singularity::transaction_t> activity_interactions;
-                    for (auto soc_item : social_interactions) {
-                        singularity::transaction_t tran(
-                                soc_item->get_weight(),
-                                0,
-                                soc_item->get_source(),
-                                soc_item->get_target(),
-                                time_t(0),
-                                0,
-                                0,
-                                soc_item->get_height());
-                        activity_interactions.emplace_back(tran);
-                    }
-                    for (auto tran_item :my_transfer_interactions) {
-                        singularity::transaction_t tran(
-                                tran_item->get_weight(),
-                                0,
-                                tran_item->get_source(),
-                                tran_item->get_target(),
-                                time_t(0),
-                                0,
-                                0,
-                                tran_item->get_height());
-                        activity_interactions.emplace_back(tran);
-                    }
-                    act_period.add_block(activity_interactions);
-                }
-            }
-            catch (std::exception e) {
-                elog(e.what());
-            }
-            catch (...) {
-                elog("Error on parsing block " + std::to_string(i));
-            }
-            my_transfer_interactions.clear();
-        }
-        tr_int_old.close();
-
-        std::map<node_type, string> node_type_names;
-        node_type_names[node_type::ACCOUNT] = "ACCOUNT";
-        node_type_names[node_type::CONTENT] = "CONTENT";
-        node_type_names[node_type::ORGANIZATION] = "ORGANIZATION";
-
-        auto social_rates = social_calculator->calculate();
-        auto transfer_rates = transfer_calculator->calculate();
-        auto activity = act_period.get_activity();
-
-        ilog("social_rates.size()" + std::to_string(social_rates.size()) +
-             " transfer_rates.size()" + std::to_string(transfer_rates.size()));
-        ilog("activity " + to_string((int64_t)activity));
-
-        //set network activity results
-        result.current_activity = to_string((int64_t)activity);
-
-        //set results for social rate");
-        for (auto group : social_rates) {
-            auto group_name = node_type_names[group.first];
-            auto item_map = group.second;
-            for (auto item : *item_map) {
-                string name = item.first;
-                string value = item.second.str(10,ios_base::fixed);
-                result.res_map[name].name = name;
-                result.res_map[name].type = group_name;
-                result.res_map[name].soc_rate = value;
-            }
-
-            ilog("scale the group results");
-            auto scaled_map = grv_calculator.scale_activity_index(*item_map);
-            for (auto item : scaled_map) {
-                string name = item.first;
-                string value = item.second.str(10,ios_base::fixed);
-
-                result.res_map[name].soc_rate_scaled = value;
-            }
+            result.res_map[name] = item;
         }
 
-        //set results for transfer rates");
-        for (auto group : transfer_rates) {
-            auto group_name = node_type_names[group.first];
-            auto item_map = group.second;
-            for (auto item : *item_map) {
-                string name = item.first;
-                string value = item.second.str(10,ios_base::fixed);
-                result.res_map[name].name = name;
-                result.res_map[name].type = group_name;
-                result.res_map[name].trans_rate = value;
-            }
+        for(auto cont : dp.content) {
+            auto name = cont.first;
 
-            auto scaled_map = grv_calculator.scale_activity_index(*item_map);
-            vector<std::string> vec;
+            result_item item;
+            item.name = name;
+            item.type = "CONTENT";
 
-            for (auto item : scaled_map) {
-                string name = item.first;
-                string value = item.second.str(10,ios_base::fixed);
+            item.soc_rate = cont.second["social_rate"].as_string();
+            item.soc_rate_scaled = dp.content[name]["scaled_social_rate"].as_string();
 
-                result.res_map[name].trans_rate_scaled = value;
-            }
+            result.res_map[name] = item;
         }
 
-        //set the stake rate for accounts
-        long total_stake = 0;
-        for (auto item : result.res_map){
-            auto name = item.second.name;
-            if(item.second.type != "ACCOUNT")
-                continue;
+        result.max_activity = dp.max_network_activity;
+        result.current_activity = dp.network_activity;
+        result.target_emission = dp.target_emission;
+        result.emission_limit = dp.emission_limit;
 
-            total_stake += stol(item.second.staked_balance);
-        }
-        for (auto item : result.res_map){
-            auto name = item.second.name;
-            if(item.second.type != "ACCOUNT")
-                continue;
-            if(total_stake == 0)
-                continue;
-
-            double stake_rate = stod(item.second.staked_balance) / (double) total_stake;
-            std::stringstream ss;
-            ss << std::fixed << std::setprecision(10) << stake_rate;
-            result.res_map[name].stake_rate = ss.str();
-        }
-
-        //set importance for accounts");
-        for (auto item : result.res_map) {
-            auto name = item.second.name;
-            if (item.second.type != "ACCOUNT")
-                continue;
-
-            double importance = stod(result.res_map[name].trans_rate) * transfer_importance_share +
-                                stod(result.res_map[name].soc_rate) * social_importance_share +
-                                stod(result.res_map[name].stake_rate) * stake_importance_share;
-
-            std::stringstream ss;
-            ss << std::fixed << std::setprecision(10) << importance;
-            result.res_map[name].importance = ss.str();
-
-            double importance_scaled = stod(result.res_map[name].trans_rate_scaled) * transfer_importance_share +
-                                       stod(result.res_map[name].soc_rate_scaled) * social_importance_share +
-                                       stod(result.res_map[name].stake_rate_scaled) * stake_importance_share;
-
-            ss.str("");
-            ss << importance_scaled;
-            result.res_map[name].importance_scaled = ss.str();
-        }
-
-        //calculate current emission
-        singularity::emission_calculator_new em_calculator;
-        auto target_emission = em_calculator.get_target_emission(stod(result.current_activity), 0, activity_monetary_value);
-        ilog("target_emission " + target_emission.str(4,ios_base::fixed));
-        result.target_emission = target_emission.str(4,ios_base::fixed);
-        auto emission_limit = em_calculator.get_emission_limit(initial_token_supply, yearly_emission_percent, period/2);
-        ilog("emission_limit " + emission_limit.str(4,ios_base::fixed));
-        result.emission_limit = emission_limit.str(4,ios_base::fixed);
-        double cumulative_prev_emission = 0;
-        for(auto item : result.res_map){
-            cumulative_prev_emission += stod(item.second.prev_cumulative_emission);
-        }
-        ilog("cumulative_prev_emission " + to_string(cumulative_prev_emission));
-        auto current_emission = em_calculator.get_resulting_emission(
-                (double)target_emission - cumulative_prev_emission, emission_limit, 0.5);
-        ilog("current_emission " + current_emission.str(4, ios_base::fixed));
-
-
-        //set results for emission only for accounts");
-
-        ilog("current_emission " + current_emission.str(4,ios_base::fixed));
-        for (auto item : result.res_map) {
-            auto name = item.second.name;
-
-            if (item.second.type != "ACCOUNT")
-                continue;
-
-            double emission = (double)current_emission * stod(result.res_map[name].importance);
-            double cumulative_emission = stod(result.res_map[name].prev_cumulative_emission) + emission;
-            stringstream ss;
-            ss << fixed << setprecision(4) << emission;
-            result.res_map[name].current_emission = ss.str();
-            ss.str("");
-            ss << cumulative_emission;
-            result.res_map[name].current_cumulative_emission = ss.str();
-        }
-
-        //calculate hash");
-        uos::merkle_tree<string> mtree;
-        vector< pair< string, string> > mt_input;
-        for(auto item : result.res_map){
-            //only for non-zero emission
-            if(item.second.current_cumulative_emission == "0")
-                continue;
-
-            string str_statement = "emission " + item.second.name +
-                                   " " + item.second.current_cumulative_emission;
-            mt_input.emplace_back(make_pair(str_statement, str_statement));
-        }
-        mtree.set_accounts(mt_input);
-        mtree.count_tree();
-        result.result_hash = string(mtree.nodes_list[mtree.nodes_list.size() - 1][0]);
+        result.result_hash = dp.result_hash;
     }
 
     void uos_rates_impl::save_result()
@@ -1073,169 +771,6 @@ namespace eosio {
             add_transaction(contract_calculators, "addsum", data, calc_contract_public_key, calc_contract_private_key, contract_calculators);
         }
 
-    }
-
-    vector<std::shared_ptr<singularity::relation_t>> uos_rates_impl::parse_transactions_from_block(
-            eosio::chain::signed_block_ptr block, uint32_t current_calc_block){
-
-        vector<std::shared_ptr<singularity::relation_t>> social_interactions;
-        vector<std::shared_ptr<singularity::relation_t>> transfer_interactions;
-
-        auto ro_api = app().get_plugin<chain_plugin>().get_read_only_api();
-
-        for (auto trs : block->transactions) {
-            uint32_t block_height = current_calc_block - block->block_num();
-
-            auto transaction = trs.trx.get<chain::packed_transaction>().get_transaction();
-            auto actions = transaction.actions;
-            for (auto action : actions) {
-
-                if (action.account == N(eosio.token)) {
-                    //ilog("TRANSFER FOUND BLOCK:" + std::to_string(block->block_num()) + action.name.to_string());
-
-                    if (action.name == N(transfer)) {
-
-                        chain_apis::read_only::abi_bin_to_json_params bins;
-                        bins.code = action.account;
-                        bins.action = action.name;
-                        bins.binargs = action.data;
-                        auto json = ro_api.abi_bin_to_json(bins);
-                        auto object = json.args.get_object();
-
-                        auto from = object["from"].as_string();
-                        auto to = object["to"].as_string();
-                        auto quantity = asset::from_string(object["quantity"].as_string()).get_amount();
-                        auto memo = object["memo"].as_string();
-
-                        time_t epoch = 0;
-
-                        transaction_t transfer(quantity,from, to,epoch , block_height);
-                        transfer_interactions.push_back(std::make_shared<transaction_t>(transfer));
-                         my_transfer_interactions = transfer_interactions;
-
-                        vector<std::string> vec{action.account.to_string(), action.name.to_string(),
-                                                     from,to,std::to_string(quantity),memo, std::to_string(block->block_num()), block->timestamp.to_time_point()};
-                        transfer_activity_log.addDatainRow(vec.begin(), vec.end());
-                        vec.clear();
-                    }
-                }
-
-                if (action.account != eosio::chain::string_to_name(contract_activity.c_str()))
-                    continue;
-                if(action.name != N(usertouser) &&
-                   action.name != N(makecontent) &&
-                   action.name != N(usertocont) &&
-                   action.name != N(makecontorg))
-                    continue;
-
-                chain_apis::read_only::abi_bin_to_json_params bins;
-                bins.code = action.account;
-                bins.action = action.name;
-                bins.binargs = action.data;
-                auto json = ro_api.abi_bin_to_json(bins);
-                auto object = json.args.get_object();
-
-                //serialize social transactions to file
-                fc::mutable_variant_object var_trx;
-                var_trx["transaction_id"]=fc::variant(transaction.id());
-                var_trx["block_num"] = fc::variant(std::to_string(block->block_num()));
-                var_trx["acc"] = action.account.to_string();
-                var_trx["action"] = action.name.to_string();
-                var_trx["data"] = json.args;
-                string str_json = fc::json::to_string(var_trx);
-                vector<string> vec_json{str_json};
-                social_trxs_log.addDatainRow(vec_json.begin(), vec_json.end());
-
-
-                if (action.name == N(usertouser)) {
-                }
-
-
-                if (action.name == N(makecontent) ) {
-
-                    auto from = object["acc"].as_string();
-                    auto to = object["content_id"].as_string();
-                    auto content_type_id = object["content_type_id"].as_string();
-                    if(content_type_id == "4")
-                        continue;
-
-                    string nl_symbol = "\n";
-                    if(from.find(nl_symbol) !=  std::string::npos ||
-                            to.find(nl_symbol) != std::string::npos)
-                        continue;
-
-                    ownership_t ownership(from, to, block_height);
-                    social_interactions.push_back(std::make_shared<ownership_t>(ownership));
-                    //ilog("makecontent " + from + " " + to);
-
-                    std::string s1 = ownership.get_target();
-                    vector<std::string> vec{block->timestamp.to_time_point(),std::to_string(block->block_num()),ownership.get_source(),s1,
-                                                 ownership.get_name(),std::to_string(ownership.get_height()),std::to_string(ownership.get_weight()),
-                                                 std::to_string(ownership.get_reverse_weight()),to_string_from_enum(ownership.get_source_type()),to_string_from_enum(ownership.get_target_type())};
-                    social_activity_log.addDatainRow(vec.begin(),vec.end());
-                }
-
-                if (action.name == N(usertocont)) {
-
-
-                    auto from = object["acc"].as_string();
-                    auto to = object["content_id"].as_string();
-                    auto interaction_type_id = object["interaction_type_id"].as_string();
-
-                    string nl_symbol = "\n";
-                    if(from.find(nl_symbol) !=  std::string::npos ||
-                            to.find(nl_symbol) != std::string::npos)
-                        continue;
-
-                    if(interaction_type_id == "2") {
-                        upvote_t upvote(from, to, block_height);
-                        social_interactions.push_back(std::make_shared<upvote_t>(upvote));
-                        //ilog("usertocont " + from + " " + to);
-
-                        std::string s1 = upvote.get_target();
-                        vector<std::string> vec{block->timestamp.to_time_point(),std::to_string(block->block_num()),upvote.get_source(),s1, upvote.get_name(),std::to_string(upvote.get_height()),std::to_string(upvote.get_weight()),
-                                                     std::to_string(upvote.get_reverse_weight()),to_string_from_enum(upvote.get_source_type()),to_string_from_enum(upvote.get_target_type())};
-                        social_activity_log.addDatainRow(vec.begin(),vec.end());
-                        vec.clear();
-                    }
-                    if(interaction_type_id == "4") {
-                        downvote_t downvote(from, to, block_height);
-                        social_interactions.push_back(std::make_shared<downvote_t>(downvote));
-                        //ilog("usertocont " + from + " " + to);
-
-                        std::string s1 = downvote.get_target();
-                        vector<std::string> vec{block->timestamp.to_time_point(),std::to_string(block->block_num()),downvote.get_source(),s1,
-                                                     downvote.get_name(),std::to_string(downvote.get_height()),std::to_string(downvote.get_weight()),
-                                                     std::to_string(downvote.get_reverse_weight()),to_string_from_enum(downvote.get_source_type()),to_string_from_enum(downvote.get_target_type())};
-                        social_activity_log.addDatainRow(vec.begin(),vec.end());
-                        vec.clear();
-                    }
-                }
-                if (action.name == N(makecontorg)) {
-
-                    auto from = object["organization_id"].as_string();
-                    auto to = object["content_id"].as_string();
-                    ownership_t ownershiporg(from, to, block_height);
-                    social_interactions.push_back(std::make_shared<ownership_t>(ownershiporg));
-
-                    string nl_symbol = "\n";
-                    if(from.find(nl_symbol) !=  std::string::npos ||
-                       to.find(nl_symbol) != std::string::npos)
-                        continue;
-
-                    std::string s1 = ownershiporg.get_target();
-                    vector<std::string> vec{block->timestamp.to_time_point(),std::to_string(block->block_num()),ownershiporg.get_source(),s1,
-                                                 ownershiporg.get_name(),std::to_string(ownershiporg.get_height()),std::to_string(ownershiporg.get_weight()),
-                                                 std::to_string(ownershiporg.get_reverse_weight()),to_string_from_enum(ownershiporg.get_source_type()),to_string_from_enum(ownershiporg.get_target_type())};
-                    social_activity_log.addDatainRow(vec.begin(),vec.end());
-                    vec.clear();
-
-                }
-            }
-
-        }
-
-        return social_interactions;
     }
 
     void uos_rates_impl::run_trx_queue(uint64_t num) {
