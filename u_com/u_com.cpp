@@ -358,7 +358,9 @@ namespace eosio {
                 }
 
             }
-            var_trx["actions"]=fc::variant(actions_vector);
+            if(actions_vector.empty())
+                continue;
+            var_trx["actions"] = fc::variant(actions_vector);
             trx_vector.push_back(var_trx);
             var_trx["actions"].clear();
         }
