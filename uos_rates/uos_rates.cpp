@@ -46,6 +46,8 @@ namespace eosio {
 
         void calculate_rates(uint32_t current_calc_block_num);
 
+        void save_detalization(uos::data_processor dp);
+
         void save_result();
 
         void report_hash();
@@ -480,6 +482,8 @@ namespace eosio {
     }
 
     void uos_rates_impl::calculate_rates(uint32_t current_calc_block_num) {
+        ilog("begin calculate_rates()");
+
         uos::data_processor dp(current_calc_block_num);
 
         //input transactions
@@ -558,6 +562,170 @@ namespace eosio {
         result.emission_limit = dp.emission_limit;
 
         result.result_hash = dp.result_hash;
+
+        if(dump_calc_data)
+            save_detalization(dp);
+    }
+
+    void uos_rates_impl::save_detalization(uos::data_processor dp) {
+        //index the ownership
+        map<string, vector<string>> own_index;
+        for(auto relation : dp.social_relations){
+            if(relation->get_name() == "OWNERSHIP")
+            {
+                vector<string> temp_list{relation->get_source(), std::to_string(relation->get_height())};
+                own_index[relation->get_target()] = temp_list;
+            }
+        }
+
+        //index relation with last content id and height
+        map<string, map<string, vector<string>>> rel_index;
+        map<string, map<string, vector<string>>> cont_index;
+        for(auto relation : dp.social_relations){
+            if(relation->get_name() != "UPVOTE") continue;
+            auto from = relation->get_source();
+            auto cont = relation->get_target();
+            auto height = std::to_string(relation->get_height());
+
+            vector<string> values{cont, height};
+            cont_index[cont][from] = values;
+
+            if(own_index.find(cont) == own_index.end()) continue;
+            auto to = own_index[cont][0];
+
+            rel_index[from][to] = values;
+
+        }
+
+        //save social interactions
+        auto filename_si = "soc_interactions_" + std::to_string(dp.current_calc_block) + "_" + dp.result_hash + ".txt";
+        auto path_si = dump_dir.string() + "/" + filename_si;
+        std::remove(path_si.c_str());
+        std::ofstream si_file(path_si, std::ios_base::app | std::ios_base::out);
+        for(auto si : dp.social_relations) {
+            si_file << si->get_name() + ";" +
+                       si->get_source() + ";" +
+                       si->get_target() + ";" +
+                       std::to_string(si->get_height()) + ";" +
+                       std::to_string(si->get_weight()) + ";" +
+                       std::to_string(si->get_reverse_weight()) + "\n";
+        }
+        si_file.close();
+
+        //save calculation details
+        auto filename = "soc_rate_details_" + std::to_string(dp.current_calc_block) + "_" + dp.result_hash + ".txt";
+        auto path = dump_dir.string() + "/" + filename;
+        std::remove(path.c_str());
+        std::ofstream det_file(path, std::ios_base::app | std::ios_base::out);
+
+        //account rates sorted by rate desc
+        //vector<string> accs;
+        multimap<double, string> acc_rates;
+        for(auto acc : dp.activity_details.base_index) {
+            //accs.emplace_back(acc.first);
+            acc_rates.insert({dp.get_acc_double_value(acc.first, "social_rate"), acc.first});
+        }
+        //std::sort(accs.begin(),accs.end(),[acc_rates](const string & a, const string & b) -> bool {
+        //    return acc_rates.find(a)->second > acc_rates.find(b)->second;
+        //});
+        for(auto acc = acc_rates.rbegin(); acc != acc_rates.rend(); ++acc){
+            string name = acc->second;
+            auto line = "acc:" + name + " rate:" + dp.get_acc_string_value(name, "social_rate");
+            det_file << line + "\n";
+
+            if(dp.activity_details.base_index.find(name) != dp.activity_details.base_index.end()){
+                line = "base:" + dp.to_string_10(dp.activity_details.base_index[name]);
+                det_file << line + "\n";
+            }
+
+            if(dp.activity_details.activity_index_contribution.find(name) !=
+               dp.activity_details.activity_index_contribution.end()) {
+                //sort upvoters by impact
+                multimap<double, string> upvoters_impact;
+                for(auto item : dp.activity_details.activity_index_contribution[name]){
+                    upvoters_impact.insert({
+                                                   stod(dp.to_string_10(item.second.koefficient * item.second.rate)),
+                                                   item.first
+                    });
+                }
+                for(auto item = upvoters_impact.rbegin(); item != upvoters_impact.rend(); ++item){
+                    auto impact = item->first;
+                    auto upname = item->second;
+                    auto dets = dp.activity_details.activity_index_contribution[name][upname];
+                    line = dp.to_string_10(impact) +
+                           ": " + dp.to_string_10(dets.koefficient) +
+                           "*" + dp.to_string_10(dets.rate) + " " +
+                           "agent:" + upname + " ";
+                    if(rel_index.find(upname) != rel_index.end()
+                       && rel_index[upname].find(name) != rel_index[upname].end()){
+                        line += "cont:" + rel_index[upname][name][0] +
+                                " days:" + dp.to_string_10(stod(rel_index[upname][name][1]) / 86400 / 2) +
+                                " rel_count:" + std::to_string(rel_index[upname].size());
+                    } else {
+                        line += "relations not found";
+                    }
+
+                    det_file << line + "\n";
+                }
+            }
+
+            if(dp.activity_details.stack_contribution.find(name) !=
+               dp.activity_details.stack_contribution.end()){
+                line = "stake: ";
+                for(auto item : dp.activity_details.stack_contribution[name]){
+                    line += item.first +
+                            ":" + dp.to_string_10(item.second.koefficient) +
+                            "*" + dp.to_string_10(item.second.rate) + " ";
+                }
+                det_file << line + "\n";
+            }
+
+            det_file << "\n";
+        }
+
+        //content rates sorted by rate desc
+        //vector<string> conts;
+        multimap<double, string> cont_rates;
+        for(auto cont : dp.content) {
+            if(cont.second["social_rate"].as_string() == "0")
+                continue;
+
+            //conts.emplace_back(cont.first);
+            cont_rates.insert({stod(cont.second["social_rate"].as_string()), cont.first});
+        }
+//        std::sort(conts.begin(),conts.end(),[cont_rates](const string & a, const string & b) -> bool {
+//            return cont_rates.find(a)->second > cont_rates.find(b)->second;
+//});
+        for(auto cont = cont_rates.rbegin(); cont != cont_rates.rend(); ++cont) {
+            auto name = cont->second;
+            auto line = "cont:" + name +
+                        " rate:" + dp.content[name]["social_rate"].as_string();
+            if(own_index.find(name) != own_index.end()) {
+                line += " author:" + own_index[name][0] +
+                        " days:" + dp.to_string_10(stod(own_index[name][1]) / 86400 / 2);
+            } else {
+                line += " no author";
+            }
+
+            det_file << line + "\n";
+
+            if(cont_index.find(name) == cont_index.end()){
+                det_file << "upvoters not found \n";
+                continue;
+            }
+
+            for(auto upvoter : cont_index[name]) {
+                line = "upvoter:" +  upvoter.first +
+                       " rate:" + dp.get_acc_string_value(upvoter.first, "social_rate") +
+                       " count: " + std::to_string(rel_index[upvoter.first].size()) +
+                       " days:" + dp.to_string_10(stod(upvoter.second[1]) / 86400 / 2);
+                det_file << line + "\n";
+            }
+
+            det_file << "\n";
+        }
+
+        det_file.close();
     }
 
     void uos_rates_impl::save_result()

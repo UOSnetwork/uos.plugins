@@ -57,6 +57,9 @@ namespace uos {
         map<string, fc::mutable_variant_object> accounts;
         map<string, fc::mutable_variant_object> content;
 
+        //calculation details
+        singularity::activity_index_detalization_t activity_details;
+
         string network_activity;
         string max_network_activity;
         string full_prev_emission;
@@ -217,6 +220,7 @@ namespace uos {
 
     void data_processor::calculate_social_rates() {
         singularity::parameters_t params;
+        params.include_detailed_data = true;
 
         auto social_calculator =
                 singularity::rank_calculator_factory::create_calculator_for_social_network(params);
@@ -235,6 +239,8 @@ namespace uos {
                 content[item.first] = fc::mutable_variant_object();
             content[item.first].set("social_rate", to_string_10(item.second));
         }
+
+        activity_details = social_calculator->get_detalization();
     }
 
     void data_processor::calculate_transfer_rates() {
