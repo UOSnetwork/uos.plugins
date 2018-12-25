@@ -312,9 +312,10 @@ namespace uos {
             accounts[acc.first].set("scaled_importance", to_string_10(scaled_importance));
         }
 
-        auto cont_count = content.size();
+        //auto cont_count = content.size();
+        ///use the same scale for the content rate
         for(auto cont : content){
-            double scaled_social_rate = stod(content[cont.first]["social_rate"].as_string()) * cont_count;
+            double scaled_social_rate = stod(content[cont.first]["social_rate"].as_string()) * acc_count;
             content[cont.first].set("scaled_social_rate", to_string_10(scaled_social_rate));
         }
     }
