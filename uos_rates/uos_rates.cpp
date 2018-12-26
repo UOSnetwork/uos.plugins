@@ -701,16 +701,42 @@ namespace eosio {
 
             det_file << line + "\n";
 
+            map<string, vector<string>> upvoters;
             if(cont_index.find(name) == cont_index.end()){
                 det_file << "upvoters not found \n";
-                continue;
+            } else {
+                upvoters = cont_index[name];
             }
 
-            for(auto upvoter : cont_index[name]) {
-                line = "upvoter:" +  upvoter.first +
-                       " rate:" + dp.get_acc_string_value(upvoter.first, "social_rate") +
-                       " count: " + std::to_string(rel_index[upvoter.first].size()) +
-                       " days:" + dp.to_string_10(stod(upvoter.second[1]) / 86400 / 2);
+            if(dp.content_details.activity_index_contribution.find(name) ==
+               dp.content_details.activity_index_contribution.end())
+                continue;
+
+            //sort upvoters by impact
+            multimap<double, string> upvoters_impact;
+            for(auto item : dp.content_details.activity_index_contribution[name]){
+                upvoters_impact.insert({
+                                               stod(dp.to_string_10(item.second.koefficient * item.second.rate)),
+                                               item.first
+                                       });
+            }
+
+            for(auto item = upvoters_impact.rbegin(); item != upvoters_impact.rend(); ++item) {
+                auto impact = item->first;
+                auto upname = item->second;
+                auto dets = dp.content_details.activity_index_contribution[name][upname];
+                line = dp.to_string_10(impact) +
+                       ": " + dp.to_string_10(dets.koefficient) +
+                       "*" + dp.to_string_10(dets.rate) + " " +
+                       "agent:" + upname + " ";
+                if(cont_index.find(name) != cont_index.end()
+                   && cont_index[name].find(upname) != cont_index[name].end()){
+                    line += " days:" + dp.to_string_10(stod(cont_index[name][upname][1]) / 86400 / 2) +
+                            " rel_count:" + std::to_string(rel_index[upname].size());
+                } else {
+                    line += "relations not found";
+                }
+
                 det_file << line + "\n";
             }
 

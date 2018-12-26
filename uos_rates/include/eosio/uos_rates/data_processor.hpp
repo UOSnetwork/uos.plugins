@@ -59,6 +59,7 @@ namespace uos {
 
         //calculation details
         singularity::activity_index_detalization_t activity_details;
+        singularity::activity_index_detalization_t content_details;
 
         string network_activity;
         string max_network_activity;
@@ -268,6 +269,7 @@ namespace uos {
         }
 
         activity_details = social_calculator->get_detalization();
+        content_details = social_calculator->get_content_detalization();
     }
 
     void data_processor::calculate_transfer_rates() {
