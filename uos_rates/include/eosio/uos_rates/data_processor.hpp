@@ -77,6 +77,7 @@ namespace uos {
         void convert_transactions_to_relations();
         vector<std::shared_ptr<singularity::relation_t>> parse_token_transaction(fc::variant trx);
         vector<std::shared_ptr<singularity::relation_t>> parse_social_transaction(fc::variant trx);
+        void add_lost_items(fc::variant trx);
 
         void calculate_social_rates();
         void calculate_transfer_rates();
@@ -98,6 +99,8 @@ namespace uos {
         string get_acc_string_value(string acc_name, string value_name);
         double get_acc_double_value(string acc_name, string value_name);
         long get_acc_long_value(string acc_name, string value_name);
+        string get_cont_string_value(string cont_name, string value_name);
+        double get_cont_double_value(string cont_name, string value_name);
     };
 
     void data_processor::convert_transactions_to_relations() {
@@ -113,6 +116,11 @@ namespace uos {
             activity_start_block = 1;
 
         for(auto trx : source_transactions){
+
+            //add the lost items regardless of the block number
+            if(trx["acc"].as_string() == "uos.activity") {
+                add_lost_items(trx);
+            }
 
             auto block_num = stoi(trx["block_num"].as_string());
 
@@ -218,6 +226,25 @@ namespace uos {
         return result;
     }
 
+    void data_processor::add_lost_items(fc::variant trx) {
+        if (trx["action"].as_string() == "makecontent"){
+            auto from = trx["data"]["acc"].as_string();
+            auto to = trx["data"]["content_id"].as_string();
+            auto content_type_id = trx["data"]["content_type_id"].as_string();
+
+            //add organizations as the accounts
+            if(content_type_id == "4"){
+                if(accounts.find(to) == accounts.end())
+                    accounts[to] = fc::mutable_variant_object();
+            }
+            //add the content
+            else {
+                if(content.find(to) == content.end())
+                    content[to] = fc::mutable_variant_object();
+            }
+        }
+    }
+
     void data_processor::calculate_social_rates() {
         singularity::parameters_t params;
         params.include_detailed_data = true;
@@ -315,7 +342,7 @@ namespace uos {
         //auto cont_count = content.size();
         ///use the same scale for the content rate
         for(auto cont : content){
-            double scaled_social_rate = stod(content[cont.first]["social_rate"].as_string()) * acc_count;
+            double scaled_social_rate = get_cont_double_value(cont.first, "social_rate") * acc_count;
             content[cont.first].set("scaled_social_rate", to_string_10(scaled_social_rate));
         }
     }
@@ -421,6 +448,22 @@ namespace uos {
     long data_processor::get_acc_long_value(std::string acc_name, std::string value_name) {
         auto str_value = get_acc_string_value(acc_name, value_name);
         return stol(str_value);
+    }
+
+    string data_processor::get_cont_string_value(std::string cont_name, std::string value_name) {
+        if(content.find(cont_name) == content.end())
+            return "0";
+
+        if(content[cont_name].find(value_name) == content[cont_name].end())
+            return "0";
+
+        auto str_value = content[cont_name][value_name].as_string();
+        return str_value;
+    }
+
+    double data_processor::get_cont_double_value(std::string cont_name, std::string value_name) {
+        auto str_value = get_cont_string_value(cont_name, value_name);
+        return stod(str_value);
     }
 }
 

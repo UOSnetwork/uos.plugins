@@ -550,8 +550,8 @@ namespace eosio {
             item.name = name;
             item.type = "CONTENT";
 
-            item.soc_rate = cont.second["social_rate"].as_string();
-            item.soc_rate_scaled = dp.content[name]["scaled_social_rate"].as_string();
+            item.soc_rate = dp.get_cont_string_value(name, "social_rate");
+            item.soc_rate_scaled = dp.get_cont_string_value(name, "scaled_social_rate");
 
             result.res_map[name] = item;
         }
@@ -619,15 +619,11 @@ namespace eosio {
         std::ofstream det_file(path, std::ios_base::app | std::ios_base::out);
 
         //account rates sorted by rate desc
-        //vector<string> accs;
         multimap<double, string> acc_rates;
         for(auto acc : dp.activity_details.base_index) {
             //accs.emplace_back(acc.first);
             acc_rates.insert({dp.get_acc_double_value(acc.first, "social_rate"), acc.first});
         }
-        //std::sort(accs.begin(),accs.end(),[acc_rates](const string & a, const string & b) -> bool {
-        //    return acc_rates.find(a)->second > acc_rates.find(b)->second;
-        //});
         for(auto acc = acc_rates.rbegin(); acc != acc_rates.rend(); ++acc){
             string name = acc->second;
             auto line = "acc:" + name + " rate:" + dp.get_acc_string_value(name, "social_rate");
@@ -684,22 +680,18 @@ namespace eosio {
         }
 
         //content rates sorted by rate desc
-        //vector<string> conts;
         multimap<double, string> cont_rates;
         for(auto cont : dp.content) {
-            if(cont.second["social_rate"].as_string() == "0")
+            if(dp.get_cont_string_value(cont.first, "social_rate") == "0")
                 continue;
 
             //conts.emplace_back(cont.first);
-            cont_rates.insert({stod(cont.second["social_rate"].as_string()), cont.first});
+            cont_rates.insert({dp.get_cont_double_value(cont.first, "social_rate"), cont.first});
         }
-//        std::sort(conts.begin(),conts.end(),[cont_rates](const string & a, const string & b) -> bool {
-//            return cont_rates.find(a)->second > cont_rates.find(b)->second;
-//});
         for(auto cont = cont_rates.rbegin(); cont != cont_rates.rend(); ++cont) {
             auto name = cont->second;
             auto line = "cont:" + name +
-                        " rate:" + dp.content[name]["social_rate"].as_string();
+                        " rate:" + dp.get_cont_string_value(name, "social_rate");
             if(own_index.find(name) != own_index.end()) {
                 line += " author:" + own_index[name][0] +
                         " days:" + dp.to_string_10(stod(own_index[name][1]) / 86400 / 2);
