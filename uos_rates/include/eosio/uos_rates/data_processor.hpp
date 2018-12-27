@@ -249,6 +249,7 @@ namespace uos {
     void data_processor::calculate_social_rates() {
         singularity::parameters_t params;
         params.include_detailed_data = true;
+        params.use_diagonal_elements = true;
 
         auto social_calculator =
                 singularity::rank_calculator_factory::create_calculator_for_social_network(params);
