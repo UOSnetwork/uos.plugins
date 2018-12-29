@@ -336,80 +336,7 @@ namespace eosio {
 
         map<string, string> prev_emission;
 
-        //check if there is consensus hash in the consensus table
         auto ro_api = app().get_plugin<chain_plugin>().get_read_only_api();
-        chain_apis::read_only::get_table_rows_params get_cons;
-        get_cons.code = eosio::chain::name(contract_calculators);
-        get_cons.scope = contract_calculators;
-        get_cons.table = N(consensus);
-        get_cons.key_type = chain_apis::i64;
-        get_cons.index_position = "second";
-        get_cons.limit = 1;
-        get_cons.json = true;
-        auto cons_rows = ro_api.get_table_rows(get_cons);
-
-        //if the previous result is found, use it to update
-        if(cons_rows.rows.size() > 0) {
-            ilog("getting cumulative emission from previous result");
-
-            string block_num_str = cons_rows.rows[0]["block_num"].as_string();
-            string hash_str = cons_rows.rows[0]["hash"].as_string();
-
-            //try to get results from json
-            string json_filename = "result_" + block_num_str + "_" + hash_str + ".json";
-            if(bfs::exists(dump_dir.string() + "/" + json_filename)){
-                ilog("getting results from json");
-                ifstream istr(dump_dir.string() + "/" + json_filename);
-                stringstream buffer;
-                buffer << istr.rdbuf();
-                string json = buffer.str();
-
-                auto variant_json = fc::json::from_string(json);
-                auto prev_result = result_set(variant_json);
-
-                for (auto item : prev_result.res_map)
-                {
-                    string name = item.second.name;
-//                    string type = item.second.type;
-                    string cumulative_emission = item.second.current_cumulative_emission;
-
-                    //skip all non-zero emission
-                    if (cumulative_emission == "0")
-                        continue;
-
-//                    result.res_map[name].name = name;
-//                    result.res_map[name].type = type;
-//                    result.res_map[name].prev_cumulative_emission = cumulative_emission;
-                    prev_emission[name] = cumulative_emission;
-                }
-            }
-            //if there is no json get the results from csv
-            else {
-                ilog("getting results from csv");
-                string filename = "result_" + block_num_str + "_" + hash_str + ".csv";
-                auto csv = read_csv_map(dump_dir.string() + "/" + filename);
-
-                //TODO if file not found request the results file from other nodes
-
-                for (auto i = 0; i < csv.size(); i++) {
-
-                    string name = csv[i]["name"];
-//                    string type = csv[i]["type"];
-                    string cumulative_emission = csv[i]["current_cumulative_emission"];
-
-                    //skip all non-zero emission
-                    if (cumulative_emission == "0")
-                        continue;
-
-//                    result.res_map[name].name = name;
-//                    result.res_map[name].type = type;
-//                    result.res_map[name].prev_cumulative_emission = cumulative_emission;
-                    prev_emission[name] = cumulative_emission;
-                }
-            }
-        }
-        //if the previous result is not found, use the emission values from the old table
-        else
         {
             ilog("getting cumulative emission from the old table");
 
@@ -432,9 +359,6 @@ namespace eosio {
                 ss << fixed << setprecision(4) << em_double;
                 string em_str_round =  ss.str();
 
-//                result.res_map[acc].name = acc;
-//                result.res_map[acc].type = "ACCOUNT";
-//                result.res_map[acc].prev_cumulative_emission = em_str_round;
                 prev_emission[acc] = em_str_round;
             }
         }
