@@ -44,6 +44,49 @@ namespace eosio {
         string prev_cumulative_emission = "0";
         string current_emission = "0";
         string current_cumulative_emission = "0";
+
+        result_item(){}
+
+        result_item(fc::variant vi){
+            name = vi["name"].as_string();
+            type = vi["type"].as_string();
+
+            soc_rate = vi["soc_rate"].as_string();
+            soc_rate_scaled = vi["soc_rate_scaled"].as_string();
+            trans_rate = vi["trans_rate"].as_string();
+            trans_rate_scaled = vi["trans_rate_scaled"].as_string();
+            staked_balance = vi["staked_balance"].as_string();
+            stake_rate = vi["stake_rate"].as_string();
+            stake_rate_scaled = vi["stake_rate_scaled"].as_string();
+            importance = vi["importance"].as_string();
+            importance_scaled = vi["importance_scaled"].as_string();
+
+            prev_cumulative_emission = vi["prev_cumulative_emission"].as_string();
+            current_emission = vi["current_emission"].as_string();
+            current_cumulative_emission = vi["current_cumulative_emission"].as_string();
+        }
+
+        fc::mutable_variant_object to_variant(){
+            fc::mutable_variant_object res_var;
+            res_var["name"] = name;
+            res_var["type"] = type;
+
+            res_var["soc_rate"] = soc_rate;
+            res_var["soc_rate_scaled"] = soc_rate_scaled;
+            res_var["trans_rate"] = trans_rate;
+            res_var["trans_rate_scaled"] = trans_rate_scaled;
+            res_var["staked_balance"] = staked_balance;
+            res_var["stake_rate"] = stake_rate;
+            res_var["stake_rate_scaled"] = stake_rate_scaled;
+            res_var["importance"] = importance;
+            res_var["importance_scaled"] = importance_scaled;
+
+            res_var["prev_cumulative_emission"] = prev_cumulative_emission;
+            res_var["current_emission"] = current_emission;
+            res_var["current_cumulative_emission"] = current_cumulative_emission;
+
+            return res_var;
+        };
     };
 
     class result_set
@@ -57,6 +100,8 @@ namespace eosio {
         string emission_limit = "0";
 
         map<string, result_item> res_map;
+        vector<result_item> accounts;
+        vector<result_item> content;
         string result_hash;
 
         result_set(uint64_t bn){
@@ -76,23 +121,7 @@ namespace eosio {
             auto var_list = v["res_list"].get_array();
             for(auto vi : var_list)
             {
-                result_item ri;
-                ri.name = vi["name"].as_string();
-                ri.type = vi["type"].as_string();
-
-                ri.soc_rate = vi["soc_rate"].as_string();
-                ri.soc_rate_scaled = vi["soc_rate_scaled"].as_string();
-                ri.trans_rate = vi["trans_rate"].as_string();
-                ri.trans_rate_scaled = vi["trans_rate_scaled"].as_string();
-                ri.staked_balance = vi["staked_balance"].as_string();
-                ri.stake_rate = vi["stake_rate"].as_string();
-                ri.stake_rate_scaled = vi["stake_rate_scaled"].as_string();
-                ri.importance = vi["importance"].as_string();
-                ri.importance_scaled = vi["importance_scaled"].as_string();
-
-                ri.prev_cumulative_emission = vi["prev_cumulative_emission"].as_string();
-                ri.current_emission = vi["current_emission"].as_string();
-                ri.current_cumulative_emission = vi["current_cumulative_emission"].as_string();
+                auto ri = result_item(vi);
 
                 res_map[ri.name] = ri;
             }
@@ -110,23 +139,7 @@ namespace eosio {
             result["result_hash"] = result_hash;
             fc::variants res_list;
             for(auto item : res_map){
-                fc::mutable_variant_object res_var;
-                res_var["name"] = item.second.name;
-                res_var["type"] = item.second.type;
-
-                res_var["soc_rate"] = item.second.soc_rate;
-                res_var["soc_rate_scaled"] = item.second.soc_rate_scaled;
-                res_var["trans_rate"] = item.second.trans_rate;
-                res_var["trans_rate_scaled"] = item.second.trans_rate_scaled;
-                res_var["staked_balance"] = item.second.staked_balance;
-                res_var["stake_rate"] = item.second.stake_rate;
-                res_var["stake_rate_scaled"] = item.second.stake_rate_scaled;
-                res_var["importance"] = item.second.importance;
-                res_var["importance_scaled"] = item.second.importance_scaled;
-
-                res_var["prev_cumulative_emission"] = item.second.prev_cumulative_emission;
-                res_var["current_emission"] = item.second.current_emission;
-                res_var["current_cumulative_emission"] = item.second.current_cumulative_emission;
+                fc::mutable_variant_object res_var = item.second.to_variant();
 
                 res_list.push_back(res_var);
             }
@@ -134,6 +147,23 @@ namespace eosio {
 
             return result;
         }
+
+//        fc::mutable_variant_object get_accounts(int skip, int limit){
+//
+//            if(accounts.size() == 0){
+//                for(auto item : res_map){
+//                    if(item.second.type == "ACCOUNT") accounts.emplace_back(item.second);
+//                }
+//            }
+//
+//            fc::mutable_variant_object acc_res;
+//            acc_res["skip"] = skip;
+//            acc_res["limit"] = limit;
+//
+//            for(int i = 0; i < limit && skip + i < accounts.size(); i++){
+//                acc_res.
+//            }
+//        }
     };
 
     class upvote_t: public singularity::relation_t

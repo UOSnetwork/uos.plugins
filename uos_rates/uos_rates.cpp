@@ -36,6 +36,8 @@ namespace eosio {
 
         void save_userres(uint current_head_block_number);
 
+        result_set get_saved_result(uint32_t block_num, string hash);
+
         map<string, string> get_previous_emission(uint64_t current_calc_block);
 
         void set_previouos_emission(map<string, string> prev_emission);
@@ -117,6 +119,7 @@ namespace eosio {
         vector<std::shared_ptr<singularity::relation_t>> my_transfer_interactions;
         uint64_t last_calc_block = 0;
         result_set result = result_set(0); //TODO use pointer
+        map<uint32_t, result_set> result_cache;
 
         uint64_t last_setrate_block = 0;
 
@@ -332,6 +335,33 @@ namespace eosio {
         }
     }
 
+    result_set uos_rates_impl::get_saved_result(uint32_t block_num, string hash){
+
+        ilog("looking for result for block: " + std::to_string(block_num) + " hash: " + hash);
+
+        if(result_cache.find(block_num) == result_cache.end()){
+            ilog("result is not found in cache. trying to load from file...");
+            string json_filename = "result_" + std::to_string(block_num) + "_" + hash + ".json";
+            string path = dump_dir.string() + "/" + json_filename;
+
+            if (!bfs::exists(path))
+                elog("file not found " + json_filename);
+            ifstream istr(path);
+            stringstream buffer;
+            buffer << istr.rdbuf();
+            string json = buffer.str();
+            fc::variant var_res = fc::json::from_string(json);
+            auto res = result_set(var_res);
+
+            if(result_cache.size() >= 10)
+                result_cache.erase(result_cache.begin()->first);
+
+            result_cache.emplace(block_num, res);
+        }
+
+        return result_cache.find(block_num)->second;
+    }
+
     map<string, string> uos_rates_impl::get_previous_emission(uint64_t current_calc_block) {
 
         map<string, string> prev_emission;
@@ -489,6 +519,11 @@ namespace eosio {
 
         if(dump_calc_data)
             save_detalization(dp);
+
+        // add the result to cache
+        if(result_cache.size() >= 10)
+            result_cache.erase(result_cache.begin()->first);
+        result_cache.emplace(result.block_num, result);
     }
 
     void uos_rates_impl::save_detalization(uos::data_processor dp) {
@@ -975,7 +1010,7 @@ namespace eosio {
                             try {
                                 fc::variant pretty_output;
                                 pretty_output = app().get_plugin<chain_plugin>().chain().to_variant_with_abi(*trx_trace_ptr, fc::milliseconds(100));
-                                ilog(fc::json::to_string(pretty_output));
+                                //ilog(fc::json::to_string(pretty_output));
                             }
                             catch (...){
                                 elog("Error ");
@@ -1109,6 +1144,51 @@ namespace eosio {
         ac_block.accepted_block.connect([this](const auto& asp){
             my->accepted_block_catcher(asp);
         });
+
+        app().get_plugin<http_plugin>().add_api(
+                {{
+                         std::string("/v1/uos_rates/get_result_json"),
+                         [this](string,string body,url_response_callback cb)mutable{
+                             try
+                             {
+                                 if (body.empty()) body = "{}";
+                                 auto json = fc::json::from_string(body);
+                                 uint32_t block_num = json["block_num"].as_uint64();
+                                 string hash = json["hash"].as_string();
+                                 auto res = my->get_saved_result(block_num, hash);
+                                 auto res_json = fc::json::to_string(res.to_variant());
+                                 cb(200, res_json);
+                             }
+                             catch(...)
+                             {
+                                 cb(500, "{\"error\":\"unknown\"}");
+                             }
+                         }
+                 }});
+
+//        app().get_plugin<http_plugin>().add_api(
+//                {{
+//                         std::string("/v1/uos_rates/get_accounts"),
+//                         [this](string,string body,url_response_callback cb)mutable{
+//                             try
+//                             {
+//                                 if (body.empty()) body = "{}";
+//                                 auto obj = fc::json::from_string(body).get_object();
+//                                 uint32_t block_num = obj["block_num"].as_uint64();
+//                                 string hash = obj["hash"].as_string();
+//                                 int skip = 0;
+//                                 int limit = 50;
+//
+//                                 auto res = my->get_saved_result(block_num, hash);
+//                                 auto res_json = fc::json::to_string(res.to_variant());
+//                                 cb(200, res_json);
+//                             }
+//                             catch(...)
+//                             {
+//                                 cb(500, "{\"error\":\"unknown\"}");
+//                             }
+//                         }
+//                 }});
 
     }
 
