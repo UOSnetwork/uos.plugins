@@ -360,7 +360,7 @@ namespace eosio {
             }
 
             ilog("scale the group results");
-            auto scaled_map = grv_calculator.scale_activity_index(*item_map);
+            auto scaled_map = grv_calculator.scale_activity_index_to_node_count(*item_map);
             for (auto item : scaled_map) {
                 string name = item.first;
                 string value = item.second.str(10);
@@ -381,7 +381,7 @@ namespace eosio {
                 result.res_map[name].trans_rate = value;
             }
 
-            auto scaled_map = grv_calculator.scale_activity_index(*item_map);
+            auto scaled_map = grv_calculator.scale_activity_index_to_node_count(*item_map);
             vector<std::string> vec;
 
             for (auto item : scaled_map) {
@@ -893,7 +893,7 @@ namespace eosio {
         signed_trx.sign(creator_priv_key, cc.get_chain_id());
         try {
             app().get_method<eosio::chain::plugin_interface::incoming::methods::transaction_async>()(
-                    std::make_shared<chain::packed_transaction>(chain::packed_transaction(move(signed_trx))),
+                    std::make_shared<chain::transaction_metadata>(signed_trx),
                     true,
                     [this](const fc::static_variant<fc::exception_ptr, chain::transaction_trace_ptr>& result) -> void{
                         if (result.contains<fc::exception_ptr>()) {
@@ -955,7 +955,7 @@ namespace eosio {
         try {
 
             app().get_method<eosio::chain::plugin_interface::incoming::methods::transaction_async>()(
-                    std::make_shared<chain::packed_transaction>(chain::packed_transaction(move(signed_trx))),
+                    std::make_shared<chain::transaction_metadata>(signed_trx),
                     true,
                     [this](const fc::static_variant<fc::exception_ptr, chain::transaction_trace_ptr>& result) -> void{
                     if (result.contains<fc::exception_ptr>()) {
