@@ -187,10 +187,10 @@ namespace eosio {
     void uos_rates_impl::accepted_block_catcher(const eosio::chain::block_state_ptr &asp)
     {
 
-        chain::controller &cc = app().get_plugin<chain_plugin>().chain();
-        auto ro_api = app().get_plugin<chain_plugin>().get_read_only_api();
-        chain_apis::read_only::get_block_params t;
-        auto current_head_block_number = cc.fork_db_head_block_num();
+//        chain::controller &cc = app().get_plugin<chain_plugin>().chain();
+//        auto ro_api = app().get_plugin<chain_plugin>().get_read_only_api();
+//        chain_apis::read_only::get_block_params t;
+        auto current_head_block_number = app().get_plugin<chain_plugin>().chain().fork_db_head_block_num();
 
         if(current_head_block_number % period == 0) {
             save_userres(current_head_block_number);
