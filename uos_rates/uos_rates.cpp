@@ -1104,12 +1104,9 @@ namespace eosio {
             my->run_trx_queue(10);
             my->irreversible_block_catcher(bsp);
         });
-
-        eosio::chain::controller &ac_block = app().get_plugin<eosio::chain_plugin>().chain();
-        ac_block.accepted_block.connect([this](const auto& asp){
+        cc.accepted_block.connect([this](const auto& asp){
             my->accepted_block_catcher(asp);
         });
-
     }
 
     void uos_rates::plugin_shutdown() {
