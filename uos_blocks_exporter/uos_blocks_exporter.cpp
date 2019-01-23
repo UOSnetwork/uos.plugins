@@ -45,6 +45,17 @@ namespace uos_plugins{
 
     }
 
+    void fill_inline_traces_console(eosio::chain::action_trace& action_trace){
+        if(action_trace.console.length()==0){
+            action_trace.console = fc::json::to_string(app().get_plugin<eosio::chain_plugin>().get_read_only_api().abi_bin_to_json({action_trace.act.account,action_trace.act.name,action_trace.act.data}).args);
+            wlog(action_trace.console);
+            std::this_thread::sleep_for(std::chrono::seconds(10));
+            for(auto &item : action_trace.inline_traces){
+                fill_inline_traces_console(item);
+            }
+        }
+    }
+
     void uos_BE_impl::applied_transaction_catcher(const eosio::chain::transaction_trace_ptr &att) {
         fc::variants actions;
 //        fc::variant act;
@@ -54,6 +65,7 @@ namespace uos_plugins{
             if(item.act.account==N(eosio) && item.act.name==N(onblock)){
                 continue;
             }
+            fill_inline_traces_console(item);
             actions.emplace_back(fc::variant(item));
 //            fc::mutable_variant_object action;
 //            if(allowed_actions[item.act.account.to_string()].count(item.act.name.to_string())){
