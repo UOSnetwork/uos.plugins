@@ -1015,7 +1015,8 @@ namespace eosio {
                             try {
                                 fc::variant pretty_output;
                                 pretty_output = app().get_plugin<chain_plugin>().chain().to_variant_with_abi(*trx_trace_ptr, fc::milliseconds(100));
-                                ilog(fc::json::to_string(pretty_output));
+                                ilog("Transaction is sent " + pretty_output["id"].get_string() +
+                                     " actions count " + to_string(pretty_output["action_traces"].get_array().size()));
                             }
                             catch (...){
                                 elog("Error ");
@@ -1077,7 +1078,8 @@ namespace eosio {
                         try {
                             fc::variant pretty_output;
                             pretty_output = app().get_plugin<chain_plugin>().chain().to_variant_with_abi(*trx_trace_ptr, fc::milliseconds(100));
-                            ilog(fc::json::to_string(pretty_output));
+                            ilog("Transaction is sent " + pretty_output["id"].get_string() +
+                                 " actions count " + to_string(pretty_output["action_traces"].get_array().size()));
                         }
                         catch (...){
                             elog("Error ");
