@@ -841,7 +841,47 @@ namespace eosio {
     }
 
     void uos_rates_impl::set_rates(){
+        //get current rates from the contract table
+        auto ro_api = app().get_plugin<chain_plugin>().get_read_only_api();
+
+        ilog("get current rates from the contract table");
+
+        map<string, string> current_rates;
+
+        int page = 100;
+        for(int i = 0; i < 1000000; i+=page) {
+            chain_apis::read_only::get_table_rows_params get_old_em;
+            get_old_em.code = eosio::chain::name(contract_calculators);
+            get_old_em.scope = eosio::chain::name(contract_calculators).to_string();
+            get_old_em.table = N(rate);
+            get_old_em.limit = page;
+            get_old_em.lower_bound = std::to_string(i);
+            get_old_em.upper_bound = std::to_string(i + 100);
+            get_old_em.json = true;
+            auto em_rows = ro_api.get_table_rows(get_old_em);
+
+            for (auto row : em_rows.rows) {
+                string key_str = row["key"].as_string();
+                string name = row["acc_name"].as_string();
+                string value = row["value"].as_string();
+                //ilog(key_str + " " + name + " " + value);
+                current_rates[name] = value;
+            }
+
+            if(em_rows.rows.size() == 0) {
+                ilog("no more rates found");
+                break;
+            }
+        }
+
         for(auto item : result.res_map) {
+            //skip matching values
+            if(current_rates.find(item.second.name) != current_rates.end() &&
+                    current_rates[item.second.name] == item.second.soc_rate_scaled){
+                //ilog("MATCH " + item.second.name + ":" + current_rates[item.second.name] + "->" + item.second.soc_rate_scaled);
+                continue;
+            }
+
             fc::mutable_variant_object data;
             data.set("name", item.second.name);
             data.set("value", item.second.soc_rate_scaled);
