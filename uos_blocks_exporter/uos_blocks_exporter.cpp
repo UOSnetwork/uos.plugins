@@ -59,6 +59,21 @@ namespace uos_plugins{
         return ret;
     }
 
+    void console_to_variant(fc::mutable_variant_object &val){
+
+        auto itr = val.find("console");
+        if(itr!=val.end()){
+            if(itr->value().as_string().length()>0){
+                val["data"]=fc::json::from_string(itr->value().as_string());
+            }
+        }
+
+        itr = val.find("inline_traces");
+        if(itr!=val.end()){
+            ///todo
+        }
+    }
+
     void uos_BE_impl::applied_transaction_catcher(const eosio::chain::transaction_trace_ptr &att) {
         fc::variants actions;
 //        fc::variant act;
@@ -69,18 +84,10 @@ namespace uos_plugins{
             if(item.act.account==N(eosio) && item.act.name==N(onblock)){
                 continue;
             }
-            if(!out)
-                out = fill_inline_traces_console(item);
-            else
-                fill_inline_traces_console(item);
-            actions.emplace_back(fc::variant(item));
-//            fc::mutable_variant_object action;
-//            if(allowed_actions[item.act.account.to_string()].count(item.act.name.to_string())){
-//                auto i = eosio::chain::base_action_trace
-//                for(auto itr : item.inline_traces){
-//                    itr.
-//                }
-//            }
+            out  |= fill_inline_traces_console(item);
+            auto action = fc::mutable_variant_object(item);
+            console_to_variant(action);
+            actions.emplace_back(action);
         }
         if(actions.size()>0){
             std::cout<<fc::json::to_string(actions)<<std::endl<<std::endl;
