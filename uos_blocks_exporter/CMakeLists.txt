@@ -1,5 +1,5 @@
 find_package(libbsoncxx-static REQUIRED)
-find_package(libmongoc-1.0 1.13)
+find_package(libmongoc-1.0 1.8)
 
 if (libmongoc-1.0_FOUND)
 
