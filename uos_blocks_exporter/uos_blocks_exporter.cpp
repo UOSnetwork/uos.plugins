@@ -10,6 +10,8 @@ namespace uos_plugins{
 
     class uos_BE_impl {
     public:
+        uos_BE_impl();
+        ~uos_BE_impl(){};
         void irreversible_block_catcher(const eosio::chain::block_state_ptr& bsp);
         void accepted_block_catcher(const eosio::chain::block_state_ptr& asp);
         void accepted_transaction_catcher(const eosio::chain::transaction_metadata_ptr& atm);
@@ -23,6 +25,19 @@ namespace uos_plugins{
         std::shared_ptr<thread_safe::threadsafe_queue<std::string>> irreversible_blocks_queue;
         std::shared_ptr<thread_safe::threadsafe_queue<std::string>> accepted_blocks_queue;
         uos::mongo_params MongoConnectionParams;
+    };
+
+    uos_BE_impl::uos_BE_impl(){
+        uos::mongo_params params;
+        params.mongo_uri = "mongodb://localhost";
+        params.mongo_user = "";
+        params.mongo_password = "";
+        params.mongo_connection_name = "testbase";
+        params.mongo_db_action_traces = "action_traces";
+
+        accepted_blocks_queue = std::make_shared<thread_safe::threadsafe_queue<std::string>>();
+        mongo = std::make_shared<uos::mongo_worker>(params);
+
     };
 
     void uos_BE_impl::irreversible_block_catcher(const eosio::chain::block_state_ptr &bsp) {
@@ -45,54 +60,40 @@ namespace uos_plugins{
 
     }
 
-    bool fill_inline_traces_console(eosio::chain::action_trace& action_trace){
-        bool ret = false;
-        if(action_trace.console.length()==0){
-            action_trace.console = fc::json::to_string(app().get_plugin<eosio::chain_plugin>().get_read_only_api().abi_bin_to_json({action_trace.act.account,action_trace.act.name,action_trace.act.data}).args);
-            wlog(action_trace.console);
-
-            for(auto &item : action_trace.inline_traces){
-                fill_inline_traces_console(item);
-                ret = true;
-            }
+    fc::variant fill_inline_traces(eosio::chain::action_trace& action_trace){
+        fc::mutable_variant_object action_mvariant(fc::variant(static_cast<eosio::chain::base_action_trace>(action_trace)));
+        action_mvariant["act_data"] = app().get_plugin<eosio::chain_plugin>().get_read_only_api().abi_bin_to_json({action_trace.act.account,action_trace.act.name,action_trace.act.data}).args;
+        fc::variants inline_traces;
+        for(auto item: action_trace.inline_traces){
+            inline_traces.emplace_back(fill_inline_traces(item));
         }
-        return ret;
-    }
+        action_mvariant["inline_traces"]=inline_traces;
+        return action_mvariant;
 
-    void console_to_variant(fc::mutable_variant_object &val){
-
-        auto itr = val.find("console");
-        if(itr!=val.end()){
-            if(itr->value().as_string().length()>0){
-                val["data"]=fc::json::from_string(itr->value().as_string());
-            }
-        }
-
-        itr = val.find("inline_traces");
-        if(itr!=val.end()){
-            ///todo
-        }
     }
 
     void uos_BE_impl::applied_transaction_catcher(const eosio::chain::transaction_trace_ptr &att) {
         fc::variants actions;
-//        fc::variant act;
-//        act = *att;
-//        std::cout<<fc::json::to_string(act)<<std::endl<<std::endl;
-        bool out = false;
         for(auto item : att->action_traces){
             if(item.act.account==N(eosio) && item.act.name==N(onblock)){
                 continue;
             }
-            out  |= fill_inline_traces_console(item);
-            auto action = fc::mutable_variant_object(item);
-            console_to_variant(action);
-            actions.emplace_back(action);
+            actions.emplace_back(fill_inline_traces(item));
         }
         if(actions.size()>0){
             std::cout<<fc::json::to_string(actions)<<std::endl<<std::endl;
-            if(out)
+            bool consists_inlines = false;
+            for(auto item: actions){
+                if(item.get_object().contains("inline_traces") &&
+                        item["inline_traces"].get_array().size()>0){
+                    consists_inlines = true;
+                    break;
+                }
+            }
+            if(consists_inlines)
                 std::this_thread::sleep_for(std::chrono::seconds(10));
+
+            mongo->put_action_traces(fc::json::to_string(actions));
         }
     }
 

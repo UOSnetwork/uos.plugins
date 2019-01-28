@@ -16,6 +16,7 @@ namespace uos{
     struct mongo_params{
         string   mongo_uri;
         string   mongo_connection_name;
+        string   mongo_db_action_traces;
         string   mongo_db_blocks;
         string   mongo_db_results;
         string   mongo_db_balances;
@@ -35,6 +36,7 @@ namespace uos{
         string db_blocks;
         string db_results;
         string db_balances;
+        string db_action_traces;
         string user;
         string password;
         bool connected = false;
@@ -43,12 +45,13 @@ namespace uos{
         mongocxx::instance inst{};
 
         mongo_worker(){}
-        mongo_worker(const char* _uri, const char* _connection_name, const char* _db_blocks, const char* _db_results, const char* _db_balances)
+        mongo_worker(const char* _uri, const char* _connection_name, const char* _db_blocks, const char* _db_results, const char* _db_balances, const char* _db_action_traces)
                 :uri(_uri),
                  connection_name(_connection_name),
                  db_blocks(_db_blocks),
                  db_results(_db_results),
-                 db_balances(_db_balances)
+                 db_balances(_db_balances),
+                 db_action_traces(_db_action_traces)
                  //user
                  //password
         {
@@ -63,6 +66,7 @@ namespace uos{
                  db_blocks(params.mongo_db_blocks),
                  db_results(params.mongo_db_results),
                  db_balances(params.mongo_db_balances),
+                 db_action_traces(params.mongo_db_action_traces),
                  user(params.mongo_user),
                  password(params.mongo_password)
         {
@@ -79,18 +83,22 @@ namespace uos{
 
         void recheck_indexes();
 
-        fc::mutable_variant_object  get_block(const uint32_t &_blocknum);
-        bool    put_block(const string& __val);
+//        fc::mutable_variant_object  get_block(const uint32_t &_blocknum);
+//        bool    put_block(const string& __val);
+//
+//        fc::mutable_variant_object  get_balances(const uint32_t& _blocknum);
+//        bool    put_balances(const string& __val);
+//
+//        fc::mutable_variant_object  get_results(const uint32_t& _blocknum);
+//        bool    put_results(const string& __val);
 
-        fc::mutable_variant_object  get_balances(const uint32_t& _blocknum);
-        bool    put_balances(const string& __val);
+        fc::mutable_variant_object  get_action_traces(const uint32_t &_blocknum);
+        bool    put_action_traces(const string& __val);
 
-        fc::mutable_variant_object  get_results(const uint32_t& _blocknum);
-        bool    put_results(const string& __val);
-
-        std::map<uint64_t , fc::variant> get_blocks_range(const uint64_t &_block_start, const uint64_t &_block_end);
-        std::map<uint64_t , fc::variant> get_results_range(const uint64_t &_block_start, const uint64_t &_block_end);
-        std::map<uint64_t , fc::variant> get_balances_range(const uint64_t &_block_start, const uint64_t &_block_end);
+//        std::map<uint64_t , fc::variant> get_blocks_range(const uint64_t &_block_start, const uint64_t &_block_end);
+//        std::map<uint64_t , fc::variant> get_results_range(const uint64_t &_block_start, const uint64_t &_block_end);
+//        std::map<uint64_t , fc::variant> get_balances_range(const uint64_t &_block_start, const uint64_t &_block_end);
+        std::map<uint64_t , fc::variant> get_action_traces_range(const uint64_t &_block_start, const uint64_t &_block_end);
 
     };
 
