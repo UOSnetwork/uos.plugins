@@ -81,7 +81,7 @@ namespace uos_plugins{
             actions.emplace_back(fill_inline_traces(item));
         }
         if(actions.size()>0){
-            std::cout<<fc::json::to_string(actions)<<std::endl<<std::endl;
+            wlog(fc::json::to_string(actions));
             bool consists_inlines = false;
             for(auto item: actions){
                 if(item.get_object().contains("inline_traces") &&
@@ -92,12 +92,22 @@ namespace uos_plugins{
             }
             if(consists_inlines)
                 std::this_thread::sleep_for(std::chrono::seconds(10));
+            fc::mutable_variant_object mblock;
+            mblock["blocknum"] = att->block_num;
+            mblock["blockid"] = att->producer_block_id;
+            mblock["irreversible"] = false;
+            mblock["actions"] = actions;
 
-            mongo->put_action_traces(fc::json::to_string(actions));
+            try {
+                mongo->put_action_traces(fc::json::to_string(mblock));
+            }
+            catch (mongocxx::exception &ex){
+                elog(ex.what());
+            }
         }
     }
 
-    uos_BE::uos_BE():my(new uos_BE_impl()) {}
+    uos_BE::uos_BE() {    }
     uos_BE::~uos_BE(){}
 
     void uos_BE::irreversible_block_catcher(const eosio::chain::block_state_ptr &bst) { my->irreversible_block_catcher(bst);}
@@ -111,23 +121,40 @@ namespace uos_plugins{
 
     }
     void uos_BE::plugin_startup() {
+        if(startup) {
 
-        eosio::chain::controller &cc = app().get_plugin<eosio::chain_plugin>().chain();
+            eosio::chain::controller &cc = app().get_plugin<eosio::chain_plugin>().chain();
 
-        cc.irreversible_block.connect([this](const auto& bsp){
-            my->irreversible_block_catcher(bsp);
-        });
-        cc.accepted_block.connect([this](const auto& asp){
-            my->accepted_block_catcher(asp);
-        });
-        cc.accepted_transaction.connect([this](const auto& atm){
-            my->accepted_transaction_catcher(atm);
-        });
-        cc.applied_transaction.connect([this](const auto& att){
-            my->applied_transaction_catcher(att);
-        });
+            cc.irreversible_block.connect([this](const auto &bsp) {
+                my->irreversible_block_catcher(bsp);
+            });
+            cc.accepted_block.connect([this](const auto &asp) {
+                my->accepted_block_catcher(asp);
+            });
+            cc.accepted_transaction.connect([this](const auto &atm) {
+                my->accepted_transaction_catcher(atm);
+            });
+            cc.applied_transaction.connect([this](const auto &att) {
+                my->applied_transaction_catcher(att);
+            });
+        }
+        else{
+            wlog("UOS blocks exporter disabled. Error in connection to mongo DB");
+        }
     }
     void uos_BE::plugin_initialize(const boost::program_options::variables_map &options) {
+        try {
+            my = std::make_unique<uos_BE_impl>();
+            startup = true;
+        }
+        catch(...){
+            startup = false;
+        }
+        if(startup){
 
+        }
+        else{
+            wlog("UOS blocks exporter disabled. Error in connection to mongo DB");
+        }
     }
 }

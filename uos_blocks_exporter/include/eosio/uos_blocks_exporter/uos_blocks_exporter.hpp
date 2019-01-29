@@ -23,6 +23,7 @@ namespace uos_plugins{
         void accepted_block_catcher(const eosio::chain::block_state_ptr& ast);
     private:
         std::unique_ptr<class uos_BE_impl> my;
+        bool startup = false;
     };
 
 }
