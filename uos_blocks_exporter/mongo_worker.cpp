@@ -83,6 +83,9 @@ namespace uos{
 //    }
 //    bool mongo_worker::put_results(const std::string &__val) {
 //        return put_by_uniq_blocknum(__val,db_results);
+    
+//    bool mongo_worker::put_results(const std::string &__vals) {
+//        return put_by_uniq_blocknum(__vals,db_results);
 //    }
     bool mongo_worker::put_action_traces(const std::string &__val) {
         return put_by_uniq_blocknum(__val,db_action_traces);
