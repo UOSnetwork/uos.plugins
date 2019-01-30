@@ -90,8 +90,8 @@ namespace uos_plugins{
                     break;
                 }
             }
-            if(consists_inlines)
-                std::this_thread::sleep_for(std::chrono::seconds(10));
+//            if(consists_inlines)
+//                std::this_thread::sleep_for(std::chrono::seconds(10));
             fc::mutable_variant_object mblock;
             mblock["blocknum"] = att->block_num;
             mblock["blockid"] = att->producer_block_id;
