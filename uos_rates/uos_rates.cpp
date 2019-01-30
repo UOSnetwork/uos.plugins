@@ -898,7 +898,6 @@ namespace eosio {
         const auto &table = database.get_index<index_type,chain::by_name>();
         vector <std::string> account_name;
         for(chain::account_object item: table){
-           // ilog(c_fail + "ACCOUNTS:" + item.name.to_string()+ c_clear);
             account_name.push_back(item.name.to_string());
         }
         return account_name;
