@@ -12,6 +12,7 @@
 namespace uos{
 
     using bsoncxx::builder::basic::make_document;
+    using bsoncxx::builder::basic::make_array;
     using bsoncxx::builder::basic::kvp;
 
     bool mongo_worker::put_by_uniq_blocknum(const std::string &_val, const std::string &_db) {
@@ -61,32 +62,10 @@ namespace uos{
         return temp;
     }
 
-//    fc::mutable_variant_object mongo_worker::get_block(const uint32_t &_blocknum) {
-//        return get_by_blocknum(_blocknum,db_blocks);
-//    }
-//    fc::mutable_variant_object mongo_worker::get_balances(const uint32_t &_blocknum) {
-//        return get_by_blocknum(_blocknum,db_balances);
-//    }
-//    fc::mutable_variant_object mongo_worker::get_results(const uint32_t &_blocknum) {
-//        return get_by_blocknum(_blocknum,db_results);
-//    }
     fc::mutable_variant_object mongo_worker::get_action_traces(const uint32_t &_blocknum) {
         return get_by_blocknum(_blocknum,db_action_traces);
     }
 
-
-//    bool mongo_worker::put_block(const std::string &__val) {
-//        return put_by_uniq_blocknum(__val,db_blocks);
-//    }
-//    bool mongo_worker::put_balances(const std::string &__val) {
-//        return put_by_uniq_blocknum(__val,db_balances);
-//    }
-//    bool mongo_worker::put_results(const std::string &__val) {
-//        return put_by_uniq_blocknum(__val,db_results);
-    
-//    bool mongo_worker::put_results(const std::string &__vals) {
-//        return put_by_uniq_blocknum(__vals,db_results);
-//    }
     bool mongo_worker::put_action_traces(const std::string &__val) {
         return put_by_uniq_blocknum(__val,db_action_traces);
     }
@@ -94,18 +73,6 @@ namespace uos{
     void mongo_worker::recheck_indexes() {
         if (!connected)
             connect();
-//        if (mongo_conn[connection_name][db_blocks].indexes().list().begin() ==
-//            mongo_conn[connection_name][db_blocks].indexes().list().end())
-//            mongo_conn[connection_name][db_blocks].create_index(make_document(kvp("blocknum", 1)));
-//
-//        if (mongo_conn[connection_name][db_results].indexes().list().begin() ==
-//            mongo_conn[connection_name][db_results].indexes().list().end())
-//            mongo_conn[connection_name][db_results].create_index(make_document(kvp("blocknum", 1)));
-//
-//        if (mongo_conn[connection_name][db_balances].indexes().list().begin() ==
-//            mongo_conn[connection_name][db_balances].indexes().list().end())
-//            mongo_conn[connection_name][db_balances].create_index(make_document(kvp("blocknum", 1)));
-//
         if (mongo_conn[connection_name][db_action_traces].indexes().list().begin() ==
             mongo_conn[connection_name][db_action_traces].indexes().list().end())
             mongo_conn[connection_name][db_action_traces].create_index(make_document(kvp("blocknum", 1)));
@@ -140,18 +107,26 @@ namespace uos{
         return ret;
     }
 
-// std::map<uint64_t , fc::variant> mongo_worker::get_blocks_range(const uint64_t &_block_start,
-//                                                                         const uint64_t &_block_end) {
-//        return get_by_block_range(_block_start,_block_end,db_blocks);
-//    }
-//
-//    std::map<uint64_t , fc::variant> mongo_worker::get_results_range(const uint64_t &_block_start,
-//                                                                          const uint64_t &_block_end) {
-//        return get_by_block_range(_block_start,_block_end,db_results);
-//    }
-//
-//    std::map<uint64_t , fc::variant> mongo_worker::get_balances_range(const uint64_t &_block_start,
-//                                                                           const uint64_t &_block_end) {
-//        return get_by_block_range(_block_start,_block_end,db_balances);
-//    }
+    bool mongo_worker::set_irreversible_block(const uint32_t &blocknum, const std::string &block_id) {
+
+        if(!connected)
+            connect();
+        try{
+            return bool(mongo_conn[connection_name][db_action_traces].find_one_and_update(
+                    make_document(kvp("$and",
+                                      make_array(make_document(kvp("blocknum", static_cast<int64_t>(blocknum))),
+                                                 make_document(kvp("blockid",block_id))))),
+                    make_document(kvp("$set", make_document(kvp("irreversible",true))))
+                    ));
+        }
+        catch(mongocxx::exception &ex){
+            elog(ex.what());
+            return false;
+        }
+        catch (...){
+//            elog("error");
+        }
+        return true;
+    }
+
 }

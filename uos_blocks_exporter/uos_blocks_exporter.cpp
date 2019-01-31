@@ -41,19 +41,12 @@ namespace uos_plugins{
     };
 
     void uos_BE_impl::irreversible_block_catcher(const eosio::chain::block_state_ptr &bsp) {
-
+        auto ret = mongo->set_irreversible_block(bsp->block_num,bsp->block->id());
+//        elog(std::string("-"+std::string(bsp->block->id())+" "+std::to_string(bsp->block_num)));
     }
 
     void uos_BE_impl::accepted_block_catcher(const eosio::chain::block_state_ptr &asp) {
-//        fc::mutable_variant_object block;
-//        fc::mutable_variant_object actions;
-//        for(auto item_trx : asp->trxs){
-//            for( auto  act : item_trx->packed_trx->get_transaction().actions){
-//                if(allowed_actions[act.account.to_string()].count(act.name.to_string())){
-//
-//                }
-//            }
-//        }
+
     }
 
     void uos_BE_impl::accepted_transaction_catcher(const eosio::chain::transaction_metadata_ptr &atm) {
