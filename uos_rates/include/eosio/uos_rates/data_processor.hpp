@@ -55,7 +55,7 @@ namespace uos {
         vector<singularity::transaction_t> activity_relations;
 
         //output
-        map<string, fc::mutable_variant_object> accounts;//set validate
+        map<string, fc::mutable_variant_object> accounts;
         map<string, fc::mutable_variant_object> content;
 
         //calculation details
@@ -198,7 +198,6 @@ namespace uos {
             //TODO::check json is valid; check validate to name
             if (action_json.find("trust") != std::string::npos ) {
 
-                ilog("\n Found social transaction !");
                 auto json_data = fc::json::from_string(action_json);
                 auto from = json_data["data"]["account_from"].as_string();
                 auto to = json_data["data"]["account_to"].as_string();
@@ -391,15 +390,15 @@ namespace uos {
     }
 
 
-    //TODO:calculate validate(to_string_10(stake)))
+
     void data_processor::calculate_validity_accounts()
     {
-        map<string, fc::mutable_variant_object> accounts;//set validate
-
+        map<string, fc::mutable_variant_object> m_accounts;
         long total_stake = 0;
+
         for(auto item : balance_snapshot){
-            if(accounts.find(item["name"]) == accounts.end())
-                accounts[item["name"]] = fc::mutable_variant_object();
+            if(m_accounts.find(item["name"]) == m_accounts.end())
+                m_accounts[item["name"]] = fc::mutable_variant_object();
 
             string cpu_weight = item["cpu_weight"];
             string net_weight = item["net_weight"];
@@ -410,12 +409,13 @@ namespace uos {
             long staked_balance = stol(cpu_weight) + stol(net_weight);
             total_stake += staked_balance;
 
-            accounts[item["name"]].set("staked_balance", std::to_string(staked_balance));
-            elog("staked balance:" + name + std::to_string(staked_balance));
+            m_accounts[item["name"]].set("staked_balance", std::to_string(staked_balance));
+//            elog("staked balance:" + name + ":"+ std::to_string(staked_balance));
         }
 
         multimap <string,string> relation_trust;
         map <string, set<string> > trust_relations_u;
+
         for( const auto& rel : trust_relations )
             relation_trust.insert(std::pair<string, string>(rel->get_target(), rel->get_source()));
 
@@ -425,29 +425,36 @@ namespace uos {
             ss.insert(it->second);
         }
 
-
-
-
-
-        map <string, double > trust_koef;
+        map <string, double > trust_coef;
         for (map<string, set<string> >::iterator it = trust_relations_u.begin(); it != trust_relations_u.end(); ++it)
         {
-            double  stake_others_balance;
-//            cout << it->first << ": ";
+            double  stake_others_balance = 0;
+            double coeff = 0;
+            cout << it->first << ": ";
             double  stake_own_balance = get_acc_double_value(it->first,"staked_balance");
+            elog("Stake own balance: " + to_string_10(stake_own_balance));
             set<string> &st(it->second);
             for(auto i: st){
-//                cout << i<< "\n";
+                ilog(i);
                 stake_others_balance += get_acc_double_value(i,"staked_balance");
+                elog("Stake others balance: " + to_string_10(stake_others_balance));
+                double sum_stake = stake_own_balance + stake_others_balance;
+                elog("Summa  others own balance: " + to_string_10(sum_stake));
+                coeff = (stake_own_balance + stake_others_balance) /total_stake;
+
             }
-            double coeff = stake_own_balance/ stake_others_balance;
-            trust_koef.insert(std::pair<string,double>(it->first, coeff));
-
+            trust_coef.insert(std::pair<string,double>(it->first, coeff));
         }
-//        for(auto i:trust_koef )
-//            cout<<"\n Account"<<i.first<<" Koeff:"<<i.second<<"\n";
 
+        for(auto i:trust_coef ){
+            if(accounts.find(i.first) == accounts.end()) {
+                accounts[i.first] = fc::mutable_variant_object();
+                accounts[i.first].set("validity", to_string_10(i.second));
+            }
+            ilog(" Account: " + i.first + " validity: " + to_string_10(i.second));
+            elog("Total stake:" + to_string_10(total_stake));
         }
+    }
 
 
     void data_processor::calculate_network_activity() {
