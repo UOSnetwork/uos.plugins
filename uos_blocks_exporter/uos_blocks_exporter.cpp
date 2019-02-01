@@ -90,6 +90,7 @@ namespace uos_plugins{
             mblock["blockid"] = att->producer_block_id;
             mblock["irreversible"] = false;
             mblock["actions"] = actions;
+            mblock["blocktime"] = att->block_time;
 
             try {
                 mongo->put_action_traces(fc::json::to_string(mblock));
