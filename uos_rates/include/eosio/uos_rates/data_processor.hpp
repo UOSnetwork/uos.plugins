@@ -55,7 +55,7 @@ namespace uos {
         vector<singularity::transaction_t> activity_relations;
 
         //output
-        map<string, fc::mutable_variant_object> accounts;
+        map<string, fc::mutable_variant_object> accounts;//set validate
         map<string, fc::mutable_variant_object> content;
 
         //calculation details
@@ -90,6 +90,7 @@ namespace uos {
         void calculate_scaled_values();
 
         void calculate_network_activity();
+        void calculate_validity_accounts();
         void calculate_emission();
 
         void calculate_hash();
@@ -137,7 +138,7 @@ namespace uos {
                 transfer_relations.insert(transfer_relations.end(),relations.begin(), relations.end());
             }
 
-            if(trx["acc"].as_string() == "uos.activity") {
+            if(trx["acc"].as_string() == "uos.activity" && trx["action"].as_string() != "socialaction") {
                 relations = parse_social_transaction(trx);
                 social_relations.insert(social_relations.end(),relations.begin(), relations.end());
             }
@@ -388,6 +389,66 @@ namespace uos {
             content[cont.first].set("scaled_social_rate", to_string_10(scaled_social_rate));
         }
     }
+
+
+    //TODO:calculate validate(to_string_10(stake)))
+    void data_processor::calculate_validity_accounts()
+    {
+        map<string, fc::mutable_variant_object> accounts;//set validate
+
+        long total_stake = 0;
+        for(auto item : balance_snapshot){
+            if(accounts.find(item["name"]) == accounts.end())
+                accounts[item["name"]] = fc::mutable_variant_object();
+
+            string cpu_weight = item["cpu_weight"];
+            string net_weight = item["net_weight"];
+            string name = item["name"];
+
+            if(cpu_weight == "-1") cpu_weight = "0";
+            if(net_weight == "-1") net_weight = "0";
+            long staked_balance = stol(cpu_weight) + stol(net_weight);
+            total_stake += staked_balance;
+
+            accounts[item["name"]].set("staked_balance", std::to_string(staked_balance));
+            elog("staked balance:" + name + std::to_string(staked_balance));
+        }
+
+        multimap <string,string> relation_trust;
+        map <string, set<string> > trust_relations_u;
+        for( const auto& rel : trust_relations )
+            relation_trust.insert(std::pair<string, string>(rel->get_target(), rel->get_source()));
+
+        for (multimap<string,string>::const_iterator it = relation_trust.begin(); it != relation_trust.end(); ++it)
+        {
+            set<string>& ss(trust_relations_u[it->first]);
+            ss.insert(it->second);
+        }
+
+
+
+
+
+        map <string, double > trust_koef;
+        for (map<string, set<string> >::iterator it = trust_relations_u.begin(); it != trust_relations_u.end(); ++it)
+        {
+            double  stake_others_balance;
+//            cout << it->first << ": ";
+            double  stake_own_balance = get_acc_double_value(it->first,"staked_balance");
+            set<string> &st(it->second);
+            for(auto i: st){
+//                cout << i<< "\n";
+                stake_others_balance += get_acc_double_value(i,"staked_balance");
+            }
+            double coeff = stake_own_balance/ stake_others_balance;
+            trust_koef.insert(std::pair<string,double>(it->first, coeff));
+
+        }
+//        for(auto i:trust_koef )
+//            cout<<"\n Account"<<i.first<<" Koeff:"<<i.second<<"\n";
+
+        }
+
 
     void data_processor::calculate_network_activity() {
         singularity::activity_period act_period;

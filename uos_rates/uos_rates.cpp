@@ -322,6 +322,9 @@ namespace eosio {
                 auto users_info = ro_api.get_account(params);
                 auto cpu_weight = to_string(users_info.cpu_weight);
                 auto net_weight = to_string(users_info.net_weight);
+//                auto staked = users_info.total_resources.as_string();
+
+//                elog("STAKED RESOUSES" + staked );
                 vector<string> result = {acc_name, cpu_weight, net_weight};
                 csv_result_userres.addDatainRow(result.begin(), result.end());
             }
@@ -431,6 +434,7 @@ namespace eosio {
         dp.calculate_social_rates();
         dp.calculate_transfer_rates();
         dp.calculate_stake_rates();
+        dp.calculate_validity_accounts();
         dp.calculate_importance();
         dp.calculate_scaled_values();
 
