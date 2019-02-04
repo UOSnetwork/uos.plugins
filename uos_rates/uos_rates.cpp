@@ -431,10 +431,16 @@ namespace eosio {
         dp.convert_transactions_to_relations();
 
         //calculations of the rates and importance
+
+
+
+        dp.calculate_validity_accounts();
         dp.calculate_social_rates();
         dp.calculate_transfer_rates();
         dp.calculate_stake_rates();
-        dp.calculate_validity_accounts();
+
+//        dp.calculate_validity_accounts();
+
         dp.calculate_importance();
         dp.calculate_scaled_values();
 
