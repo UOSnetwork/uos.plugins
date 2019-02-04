@@ -184,7 +184,7 @@ namespace uos {
 
         vector<std::shared_ptr<singularity::relation_t>> result;
 
-        if (trx["action"].as_string() == "socialaction") {
+        if (trx["action"].as_string() == "socialaction" ) {
 
             auto block_num = stoi(trx["block_num"].as_string());
             auto block_height = current_calc_block - block_num;
@@ -196,7 +196,7 @@ namespace uos {
 
 
             //TODO::check json is valid; check validate to name
-            if (action_json.find("trust") != std::string::npos ) {
+            if (action_json.find("trust") != std::string::npos && action_json.find("singularity5") != std::string::npos || action_json.find("petr") != std::string::npos|| action_json.find("producer") != std::string::npos ) {
 
                 auto json_data = fc::json::from_string(action_json);
                 auto from = json_data["data"]["account_from"].as_string();
@@ -395,6 +395,7 @@ namespace uos {
     {
         map<string, fc::mutable_variant_object> m_accounts;
         long total_stake = 0;
+        map <string, double > default_trust_coef;
 
         for(auto item : balance_snapshot){
             if(m_accounts.find(item["name"]) == m_accounts.end())
@@ -409,9 +410,11 @@ namespace uos {
             long staked_balance = stol(cpu_weight) + stol(net_weight);
             total_stake += staked_balance;
 
-            m_accounts[item["name"]].set("staked_balance", std::to_string(staked_balance));
-//            elog("staked balance:" + name + ":"+ std::to_string(staked_balance));
+            default_trust_coef.insert(std::pair<string, double>(name, (double)staked_balance));
         }
+
+        for(auto i: default_trust_coef )
+            default_trust_coef[i.first] = i.second/total_stake;
 
         multimap <string,string> relation_trust;
         map <string, set<string> > trust_relations_u;
@@ -430,21 +433,23 @@ namespace uos {
         {
             double  stake_others_balance = 0;
             double coeff = 0;
-            cout << it->first << ": ";
+//            cout << it->first << ": ";
             double  stake_own_balance = get_acc_double_value(it->first,"staked_balance");
-            elog("Stake own balance: " + to_string_10(stake_own_balance));
             set<string> &st(it->second);
             for(auto i: st){
-                ilog(i);
+//                ilog(i);
                 stake_others_balance += get_acc_double_value(i,"staked_balance");
-                elog("Stake others balance: " + to_string_10(stake_others_balance));
+//                elog("Stake others balance: " + to_string_10(stake_others_balance));
                 double sum_stake = stake_own_balance + stake_others_balance;
-                elog("Summa  others own balance: " + to_string_10(sum_stake));
-                coeff = (stake_own_balance + stake_others_balance) /total_stake;
+//                elog("Summa  others own balance: " + to_string_10(sum_stake));
+                coeff = (stake_own_balance + stake_others_balance) /(double)total_stake;
 
             }
             trust_coef.insert(std::pair<string,double>(it->first, coeff));
         }
+
+        std::swap(default_trust_coef, trust_coef);
+        default_trust_coef.insert(trust_coef.begin(), trust_coef.end());
 
         for(auto i:trust_coef ){
             if(accounts.find(i.first) == accounts.end()) {
@@ -452,8 +457,9 @@ namespace uos {
                 accounts[i.first].set("validity", to_string_10(i.second));
             }
             ilog(" Account: " + i.first + " validity: " + to_string_10(i.second));
-            elog("Total stake:" + to_string_10(total_stake));
+
         }
+        ilog("Total stake:" + to_string_10(total_stake));
     }
 
 
