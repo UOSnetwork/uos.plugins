@@ -112,12 +112,23 @@ namespace uos{
         if(!connected)
             connect();
         try{
-            return bool(mongo_conn[connection_name][db_action_traces].find_one_and_update(
+            mongo_conn[connection_name][db_action_traces].delete_many(
+                    make_document(kvp("$and",
+                                      make_array(make_document(kvp("blocknum", static_cast<int64_t>(blocknum))),
+                                                 make_document(kvp("blockid",
+                                                                   make_document(kvp("$ne",block_id))
+                                                 ))
+                                      ))
+                    )
+            );
+            return bool(
+                    mongo_conn[connection_name][db_action_traces].find_one_and_update(
                     make_document(kvp("$and",
                                       make_array(make_document(kvp("blocknum", static_cast<int64_t>(blocknum))),
                                                  make_document(kvp("blockid",block_id))))),
                     make_document(kvp("$set", make_document(kvp("irreversible",true))))
-                    ));
+                    )
+            );
         }
         catch(mongocxx::exception &ex){
             elog(ex.what());
