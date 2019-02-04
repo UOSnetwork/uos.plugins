@@ -17,6 +17,7 @@
 //#include <algorithm>
 //#include <boost/program_options.hpp>
 //#include "../../../../../../libraries/fc/include/fc/variant.hpp"
+typedef boost::multiprecision::number< boost::multiprecision::cpp_dec_float<10> > double_type;
 
 
 namespace uos {
@@ -82,6 +83,7 @@ namespace uos {
         vector<std::shared_ptr<singularity::relation_t>> parse_trust_transaction(fc::variant trx);
         void add_lost_items(fc::variant trx);
 
+        void calculate_validity_accounts();
         void calculate_social_rates();
         void calculate_transfer_rates();
         void calculate_stake_rates();
@@ -90,7 +92,7 @@ namespace uos {
         void calculate_scaled_values();
 
         void calculate_network_activity();
-        void calculate_validity_accounts();
+
         void calculate_emission();
 
         void calculate_hash();
@@ -194,7 +196,6 @@ namespace uos {
             auto action_json = trx["data"]["action_json"].as_string();
 
 
-
             //TODO::check json is valid; check validate to name
             if (action_json.find("trust") != std::string::npos ) {
 
@@ -290,8 +291,17 @@ namespace uos {
         params.include_detailed_data = true;
         params.use_diagonal_elements = true;
 
+        map <string, double_type> validity;
+        for(auto item: accounts)
+        {
+            double coeff = get_acc_double_value(item.first, "validity");
+            validity.insert(std::pair<string, double_type>(item.first, (double_type)coeff));
+        }
+
         auto social_calculator =
                 singularity::rank_calculator_factory::create_calculator_for_social_network(params);
+
+        social_calculator->set_weights(validity);
 
         social_calculator->add_block(social_relations);
         auto social_rates = social_calculator->calculate();
@@ -410,6 +420,9 @@ namespace uos {
             long staked_balance = stol(cpu_weight) + stol(net_weight);
             total_stake += staked_balance;
 
+            accounts[item["name"]].set("staked_balance", std::to_string(staked_balance));
+            accounts[item["name"]].set("validity", std::to_string(staked_balance));
+
             default_trust_coef.insert(std::pair<string, double>(name, (double)staked_balance));
         }
 
@@ -451,13 +464,10 @@ namespace uos {
         std::swap(default_trust_coef, trust_coef);
         default_trust_coef.insert(trust_coef.begin(), trust_coef.end());
 
-        for(auto i:trust_coef ){
-            if(accounts.find(i.first) == accounts.end()) {
-                accounts[i.first] = fc::mutable_variant_object();
-                accounts[i.first].set("validity", to_string_10(i.second));
-            }
-            ilog(" Account: " + i.first + " validity: " + to_string_10(i.second));
-
+        for(auto item:default_trust_coef )
+        {
+            accounts[item.first].set("validity", to_string_10(item.second));
+            ilog("Account: " + item.first + " validity: " + to_string_10(item.second));
         }
         ilog("Total stake:" + to_string_10(total_stake));
     }
