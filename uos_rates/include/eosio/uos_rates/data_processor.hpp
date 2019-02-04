@@ -196,7 +196,7 @@ namespace uos {
 
 
             //TODO::check json is valid; check validate to name
-            if (action_json.find("trust") != std::string::npos && action_json.find("singularity5") != std::string::npos || action_json.find("petr") != std::string::npos|| action_json.find("producer") != std::string::npos ) {
+            if (action_json.find("trust") != std::string::npos ) {
 
                 auto json_data = fc::json::from_string(action_json);
                 auto from = json_data["data"]["account_from"].as_string();
