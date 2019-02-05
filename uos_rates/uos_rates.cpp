@@ -90,6 +90,7 @@ namespace eosio {
     private:
 
         int32_t period = 300*2;
+
         int32_t window = 86400*2*100;//100 days
         int32_t activity_window = 86400*2*30; //30 days
         string contract_activity = "uos.activity";
@@ -113,6 +114,10 @@ namespace eosio {
 
         bool dump_calc_data = false;
         bfs::path dump_dir;
+        int32_t custom_calc_block = 0;
+        string custom_snapshot_file = "";
+        string custom_transactions_cache_file = "";
+
 
         vector<std::shared_ptr<singularity::relation_t>> my_transfer_interactions;
         uint64_t last_calc_block = 0;
@@ -200,7 +205,28 @@ namespace eosio {
 
     fc::variants uos_rates_impl::get_transactions(uint32_t last_block_num) {
         fc::variants result;
-        string transactions_cache_file = dump_dir.string() + "/transactions_cache.txt";
+        string transactions_cache_file;
+
+        if(!custom_transactions_cache_file.empty()){
+            transactions_cache_file = dump_dir.string() + "/" + custom_transactions_cache_file;
+            elog("Custom transaction cache file:" + transactions_cache_file);
+            if(bfs::exists(transactions_cache_file)){
+                ifstream infile(transactions_cache_file);
+                string line;
+                while(getline(infile, line)){
+                    auto variant_json = fc::json::from_string(line);
+                    result.emplace_back(variant_json);
+                }
+                infile.close();
+            }
+            return result;
+        }
+        else {
+            transactions_cache_file = dump_dir.string() + "/" + "/transactions_cache.txt";
+        }
+
+
+
         if(bfs::exists(transactions_cache_file)){
             ifstream infile(transactions_cache_file);
             string line;
@@ -412,14 +438,25 @@ namespace eosio {
     void uos_rates_impl::calculate_rates(uint32_t current_calc_block_num) {
         ilog("begin calculate_rates()");
 
+        if (custom_calc_block > 0)
+            current_calc_block_num = custom_calc_block;
+
         uos::data_processor dp(current_calc_block_num);
 
         //input transactions
         auto trxs = get_transactions(current_calc_block_num);
         dp.source_transactions = trxs;
 
+        string snapshot_file;
         //input staked balances snapshot
-        string snapshot_file = "snapshot_" + to_string(current_calc_block_num) + ".csv";
+        if(!custom_snapshot_file.empty()){
+            snapshot_file = custom_snapshot_file;
+            elog("Snapshot file:" + snapshot_file );
+        }
+        else {
+            snapshot_file = "snapshot_" + to_string(current_calc_block_num) + ".csv";
+        }
+//        string snapshot_file = "snapshot_15966000.csv";
         auto snapshot_map = read_csv_map(dump_dir.string() + "/" + snapshot_file);
         dp.balance_snapshot = snapshot_map;
 
@@ -1118,6 +1155,9 @@ namespace eosio {
                 ("calc-contract-public-key", boost::program_options::value<std::string>()->default_value(""), "")
                 ("calc-contract-private-key", boost::program_options::value<std::string>()->default_value(""), "")
                 ("dump-calc-data", boost::program_options::value<bool>()->default_value(false), "Save the input and output data as *.csv files")
+                ("custom-transactions-cache", boost::program_options::value<std::string>()->default_value(""), "")
+                ("custom-snapshot", boost::program_options::value<std::string>()->default_value(""), "")
+                ("custom-calc-block", boost::program_options::value<int32_t>()->default_value(0), "Custom number of blocks ")
                 ;
     }
 
@@ -1143,6 +1183,10 @@ namespace eosio {
 
         auto dump_name = bfs::path("dump");
         my->dump_dir = app().data_dir() / dump_name;
+        my->custom_calc_block = options.at("custom-calc-block").as<int32_t>();
+        my->custom_transactions_cache_file = options.at("custom-transactions-cache").as<std::string>();
+        my->custom_snapshot_file = options.at("custom-snapshot").as<std::string>();
+
     }
 
     void uos_rates::plugin_startup() {
