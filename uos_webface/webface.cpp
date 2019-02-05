@@ -404,7 +404,24 @@ public:
             return;
         }
     }
+    void
+    on_socketerr(boost::system::error_code ec)
+    {
+        if(ec)
+        {
+            fail(ec, "socket accept");
+        }
+        else
+        {
+            // Create the session and run it
+            std::make_shared<session>(
+                    std::move(socket_),
+                    doc_root_)->run();
+        }
 
+        // Accept another connection
+        do_accept();
+    }
     // Start accepting incoming connections
     void
     run()
