@@ -16,6 +16,7 @@ namespace uos_plugins{
         void accepted_block_catcher(const eosio::chain::block_state_ptr& asp);
         void accepted_transaction_catcher(const eosio::chain::transaction_metadata_ptr& atm);
         void applied_transaction_catcher(const eosio::chain::transaction_trace_ptr & att);
+        void mongo_init();
 
         boost::program_options::variables_map _options;
         friend class uos_BE;
@@ -28,17 +29,19 @@ namespace uos_plugins{
     };
 
     uos_BE_impl::uos_BE_impl(){
-        uos::mongo_params params;
-        params.mongo_uri = "mongodb://localhost";
-        params.mongo_user = "";
-        params.mongo_password = "";
-        params.mongo_connection_name = "testbase";
-        params.mongo_db_action_traces = "action_traces";
+//        uos::mongo_params params;
+//        params.mongo_uri = "mongodb://localhost";
+//        params.mongo_user = "";
+//        params.mongo_password = "";
+//        params.mongo_connection_name = "testbase";          ///database
+//        params.mongo_db_action_traces = "action_traces";    ///collection_name
 
-        accepted_blocks_queue = std::make_shared<thread_safe::threadsafe_queue<std::string>>();
-        mongo = std::make_shared<uos::mongo_worker>(params);
-
+//        accepted_blocks_queue = std::make_shared<thread_safe::threadsafe_queue<std::string>>();
     };
+
+    void uos_BE_impl::mongo_init() {
+        mongo = std::make_shared<uos::mongo_worker>(MongoConnectionParams);
+    }
 
     void uos_BE_impl::irreversible_block_catcher(const eosio::chain::block_state_ptr &bsp) {
         auto ret = mongo->set_irreversible_block(bsp->block_num,bsp->block->id());
@@ -106,8 +109,19 @@ namespace uos_plugins{
 
     void uos_BE::irreversible_block_catcher(const eosio::chain::block_state_ptr &bst) { my->irreversible_block_catcher(bst);}
     void uos_BE::accepted_block_catcher(const eosio::chain::block_state_ptr &ast) { my->accepted_block_catcher(ast);}
+
     void uos_BE::set_program_options(boost::program_options::options_description &,
-                                     boost::program_options::options_description &cfg) {}
+                                     boost::program_options::options_description &cfg) {
+        cfg.add_options()
+                ("uos-mongo-uri",      boost::program_options::value<std::string>()->default_value("mongodb://localhost"), "MongoDB URI")
+                ("uos-mongo-user",     boost::program_options::value<std::string>()->default_value(""), "MongoDB user")
+                ("uos-mongo-password", boost::program_options::value<std::string>()->default_value(""), "MongoDB password")
+                ("uos-mongo-database", boost::program_options::value<std::string>()->default_value("uos-database"), "Database for collections")
+
+                ("uos-mongo-save-contracts",     boost::program_options::value<std::string>()->default_value("[{}]"),"what accounts and actions should be saved")
+                ("uos-mongo-not-save-contracts", boost::program_options::value<std::string>()->default_value("[{'contract':'eosio','action':'onblock'}]"),"what accounts and actions should NOT(!) be saved")
+                ;
+    }
 
 
 
@@ -137,8 +151,21 @@ namespace uos_plugins{
         }
     }
     void uos_BE::plugin_initialize(const boost::program_options::variables_map &options) {
+
         try {
+
             my = std::make_unique<uos_BE_impl>();
+            
+            my->_options = &options;
+
+            my->MongoConnectionParams.mongo_uri =               options.at("uos-mongo-uri").as<std::string>();
+            my->MongoConnectionParams.mongo_connection_name =   options.at("uos-mongo-database").as<std::string>();
+            my->MongoConnectionParams.mongo_user =              options.at("uos-mongo-user").as<std::string>();
+            my->MongoConnectionParams.mongo_password =          options.at("uos-mongo-password").as<std::string>();
+            my->MongoConnectionParams.mongo_db_action_traces =  "action_traces";
+
+            my->mongo_init();
+
             startup = true;
         }
         catch(...){
