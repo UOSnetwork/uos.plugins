@@ -162,6 +162,34 @@ namespace eosio {
         };
     };
 
+    class trust_t: public singularity::relation_t
+    {
+    public:
+        trust_t (std::string source, std::string target, uint64_t height):
+                relation_t(source, target, height)
+        {};
+        virtual int64_t get_weight() {
+            return 1;
+        };
+        virtual int64_t get_reverse_weight() {
+            return 0;
+        };
+        virtual std::string get_name() {
+            return "TRUST";
+        };
+        virtual bool is_decayable() {
+            return false;
+        };
+        virtual singularity::node_type get_source_type() {
+            return singularity::node_type::ACCOUNT;
+        };
+        virtual singularity::node_type get_target_type(){
+            return singularity::node_type::ACCOUNT;
+        };
+    };
+
+
+
     class downvote_t: public  singularity::relation_t
     {
     public:
