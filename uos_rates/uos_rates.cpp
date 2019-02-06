@@ -222,7 +222,7 @@ namespace eosio {
             return result;
         }
         else {
-            transactions_cache_file = dump_dir.string() + "/" + "/transactions_cache.txt";
+            transactions_cache_file = dump_dir.string()  + "/transactions_cache.txt";
         }
 
 
@@ -449,9 +449,9 @@ namespace eosio {
 
         string snapshot_file;
         //input staked balances snapshot
-        if(!custom_snapshot_file.empty()){
+        if(!custom_snapshot_file.empty() && bfs::exists(dump_dir.string() + "/" + custom_snapshot_file)){
             snapshot_file = custom_snapshot_file;
-            elog("Snapshot file:" + snapshot_file );
+            elog("Snapshot file:" + string(dump_dir.string() + "/" + snapshot_file));
         }
         else {
             snapshot_file = "snapshot_" + to_string(current_calc_block_num) + ".csv";
