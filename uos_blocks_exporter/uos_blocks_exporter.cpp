@@ -4,7 +4,14 @@
 #include <eosio/uos_blocks_exporter/thread_safe.hpp>
 #include <fc/io/json.hpp>
 
+
+
+
 namespace uos_plugins{
+
+
+#define  UOS_DEFAULT_WHITELIST "{\"whitelist\":[]}"
+#define  UOS_DEFAULT_BLACKLIST "{\"blacklist\":[{\"contract\":\"eosio\",\"action\":\"onblock\"},{\"contract\":\"uos.calcs\",\"action\":\"setrate\"}]}"
 
     static appbase::abstract_plugin& _uos_BE = app().register_plugin<uos_BE>();
 
@@ -23,8 +30,10 @@ namespace uos_plugins{
         std::map<std::string,std::set<std::string>> allowed_actions;
     private:
         std::shared_ptr<uos::mongo_worker> mongo;
-        std::shared_ptr<thread_safe::threadsafe_queue<std::string>> irreversible_blocks_queue;
-        std::shared_ptr<thread_safe::threadsafe_queue<std::string>> accepted_blocks_queue;
+//        std::shared_ptr<thread_safe::threadsafe_queue<std::string>> irreversible_blocks_queue;
+//        std::shared_ptr<thread_safe::threadsafe_queue<std::string>> accepted_blocks_queue;
+        std::shared_ptr<std::set<std::string>> white_list;
+        std::shared_ptr<std::set<std::string>> black_list;
         uos::mongo_params MongoConnectionParams;
     };
 
@@ -37,6 +46,9 @@ namespace uos_plugins{
 //        params.mongo_db_action_traces = "action_traces";    ///collection_name
 
 //        accepted_blocks_queue = std::make_shared<thread_safe::threadsafe_queue<std::string>>();
+        white_list = std::make_shared<std::set<std::string>>();
+        black_list = std::make_shared<std::set<std::string>>();
+
     };
 
     void uos_BE_impl::mongo_init() {
@@ -71,9 +83,22 @@ namespace uos_plugins{
     void uos_BE_impl::applied_transaction_catcher(const eosio::chain::transaction_trace_ptr &att) {
         fc::variants actions;
         for(auto item : att->action_traces){
-            if(item.act.account==N(eosio) && item.act.name==N(onblock)){
-                continue;
+            if( black_list->size() > 0 ){
+                if ( black_list->find(item.act.account.to_string()+"."+item.act.name.to_string()) !=black_list->end()){
+                    continue;
+                }
             }
+            if( white_list->size() > 0 ){
+                if ( white_list->find(item.act.account.to_string()+"."+item.act.name.to_string()) != white_list->end()){
+                    wlog("whitelist");
+                }
+            }
+            else{
+                wlog("whitelist is empty");
+            }
+//            if(item.act.account==N(eosio) && item.act.name==N(onblock)){
+//                continue;
+//            }
             actions.emplace_back(fill_inline_traces(item));
         }
         if(actions.size()>0){
@@ -118,8 +143,8 @@ namespace uos_plugins{
                 ("uos-mongo-password", boost::program_options::value<std::string>()->default_value(""), "MongoDB password")
                 ("uos-mongo-database", boost::program_options::value<std::string>()->default_value("uos-database"), "Database for collections")
 
-                ("uos-mongo-save-contracts",     boost::program_options::value<std::string>()->default_value("[{}]"),"what accounts and actions should be saved")
-                ("uos-mongo-not-save-contracts", boost::program_options::value<std::string>()->default_value("[{'contract':'eosio','action':'onblock'}]"),"what accounts and actions should NOT(!) be saved")
+                ("uos-mongo-whitelist-contracts", boost::program_options::value<std::string>()->default_value(UOS_DEFAULT_WHITELIST),"what accounts and actions should be saved")
+                ("uos-mongo-blacklist-contracts", boost::program_options::value<std::string>()->default_value(UOS_DEFAULT_BLACKLIST),"what accounts and actions should NOT(!) be saved")
                 ;
     }
 
@@ -147,7 +172,7 @@ namespace uos_plugins{
             });
         }
         else{
-            wlog("UOS blocks exporter disabled. Error in connection to mongo DB");
+            elog("UOS blocks exporter disabled. Error in connection to mongo DB");
         }
     }
     void uos_BE::plugin_initialize(const boost::program_options::variables_map &options) {
@@ -155,7 +180,7 @@ namespace uos_plugins{
         try {
 
             my = std::make_unique<uos_BE_impl>();
-            
+
             my->_options = &options;
 
             my->MongoConnectionParams.mongo_uri =               options.at("uos-mongo-uri").as<std::string>();
@@ -172,10 +197,43 @@ namespace uos_plugins{
             startup = false;
         }
         if(startup){
+            try{
+                auto whitelist = fc::json::from_string(options.at("uos-mongo-whitelist-contracts").as<std::string>());
+                auto blacklist = fc::json::from_string(options.at("uos-mongo-blacklist-contracts").as<std::string>());
+                wlog(fc::json::to_string(whitelist));
+                wlog(fc::json::to_string(blacklist));
+                if( whitelist.get_object()["whitelist"].get_type() != fc::variant::type_id::array_type)
+                    throw std::runtime_error("Whitelist not contains 'whitelist' or 'whitelist' is not array");
+                if( blacklist.get_object()["blacklist"].get_type() != fc::variant::type_id::array_type)
+                    throw std::runtime_error("Blacklist not contains 'blacklist' or 'blacklist' is not array");
+                for(auto item : whitelist.get_object()["whitelist"].get_array()){
+                    my->white_list->emplace(item.get_object()["contract"].as<std::string>() +"." + item.get_object()["action"].as<std::string>());
+                }
+                for(auto item : blacklist.get_object()["blacklist"].get_array()){
+                    my->black_list->emplace(item.get_object()["contract"].as<std::string>() +"." + item.get_object()["action"].as<std::string>());
+                }
+            }
+            catch(std::exception &e){
+                elog(e.what());
+                elog("Error in parsing white/black lists, using default lists");
+                auto whitelist = fc::json::from_string(UOS_DEFAULT_WHITELIST);
+                auto blacklist = fc::json::from_string(UOS_DEFAULT_BLACKLIST);
+                for(auto item : whitelist.get_object()["whitelist"].get_array()){
+                    my->white_list->emplace(item.get_object()["contract"].as<std::string>() +"." + item.get_object()["action"].as<std::string>());
+                }
+                for(auto item : blacklist.get_object()["blacklist"].get_array()){
+                    my->black_list->emplace(item.get_object()["contract"].as<std::string>() +"." + item.get_object()["action"].as<std::string>());
+                }
+            }
+
+            for(auto item : *my->black_list){
+                wlog(item);
+            }
 
         }
         else{
-            wlog("UOS blocks exporter disabled. Error in connection to mongo DB");
+            elog("UOS blocks exporter disabled. Error in connection to mongo DB");
+            std::this_thread::sleep_for(std::chrono::seconds(10));
         }
     }
 }
