@@ -470,6 +470,14 @@ public:
 
         // Accept another connection
         do_accept();
+        // Start listening for connections
+        acceptor_.listen(
+                boost::asio::socket_base::max_listen_connections, ec);
+        if(ec)
+        {
+            fail(ec, "listen");
+            return;
+        }
     }
 };
 
