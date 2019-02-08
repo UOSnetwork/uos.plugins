@@ -404,6 +404,7 @@ public:
             return;
         }
     }
+    // experimental ---------------
     void
     on_socketerr(boost::system::error_code ec)
     {
@@ -429,10 +430,36 @@ public:
                     std::move(socket_),
                     doc_root_)->run();
         }
+        
+        
+        
+        
 
         // Accept another connection
         do_accept();
+        
+        std::make_shared<listener>(
+               ioc,
+               tcp::endpoint{address, port},
+               std::string("/home/anton/"))->run();
+       std::vector<std::thread> v;
+       v.reserve(threads-1);
+       for(auto i = threads-1; i > 0; --i)
+           v.emplace_back(
+                   [&]()
+                   {
+                       ioc.run();
+                   });
+       ioc.run();
+       for(auto &t : v){
+           if(t.joinable())
+               t.join();
+       }
+        
     }
+    // -------------------- >
+    
+    
     // Start accepting incoming connections
     void
     run()
