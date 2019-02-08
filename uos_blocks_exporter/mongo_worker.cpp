@@ -49,6 +49,54 @@ namespace uos{
         }
         return false;
     }
+    bool mongo_worker::put_by_uniq_blocknum_trxid(const std::string &_val, const std::string &_db) {
+        if(!connected)
+            connect();
+        try {
+            fc::variant block = fc::json::from_string(_val);
+            block.get_object();
+            if (block.get_object().contains("blocknum")&&block.get_object().contains("trxid")) {
+                try {
+                    auto cursor = mongo_conn[connection_name][_db].find(
+                            make_document(
+                                    kvp( "$and",
+                                    make_array(
+                                            make_document(kvp("blocknum", block.get_object()["blocknum"].as_int64())),
+                                            make_document(kvp("trxid",block.get_object()["trxid"].as_string())))
+                                    )
+                            )
+                    );
+                    if(cursor.begin()!=cursor.end()){
+                        mongo_conn[connection_name][_db].delete_many(
+                                make_document(
+                                        kvp( "$and",
+                                             make_array(
+                                                     make_document(kvp("blocknum", block.get_object()["blocknum"].as_int64())),
+                                                     make_document(kvp("trxid",block.get_object()["trxid"].as_string())))
+                                        )
+                                )
+                        );
+                    }
+                }
+                catch (mongocxx::exception exception) {
+                    elog(exception.what());
+                }
+                try {
+                    mongocxx::options::insert test_o;
+                    test_o.bypass_document_validation(false);
+                    mongo_conn[connection_name][_db].insert_one(bsoncxx::from_json(_val),test_o);
+                }
+                catch (mongocxx::exception exception) {
+                    elog(exception.what());
+                }
+                return true;
+            }
+        }
+        catch (fc::exception exception){
+            std::cout<<exception.to_string()<<std::endl;
+        }
+        return false;
+    }
 
     fc::mutable_variant_object mongo_worker::get_by_blocknum(const uint32_t &_blocknum, const std::string &_db) {
         if(!connected)
@@ -67,15 +115,17 @@ namespace uos{
     }
 
     bool mongo_worker::put_action_traces(const std::string &__val) {
-        return put_by_uniq_blocknum(__val,db_action_traces);
+        return put_by_uniq_blocknum_trxid(__val,db_action_traces);
     }
 
     void mongo_worker::recheck_indexes() {
         if (!connected)
             connect();
         if (mongo_conn[connection_name][db_action_traces].indexes().list().begin() ==
-            mongo_conn[connection_name][db_action_traces].indexes().list().end())
-            mongo_conn[connection_name][db_action_traces].create_index(make_document(kvp("blocknum", 1)));
+            mongo_conn[connection_name][db_action_traces].indexes().list().end()) {
+            mongo_conn[connection_name][db_action_traces].create_index(make_document(kvp("blocknum", -1)));
+            mongo_conn[connection_name][db_action_traces].create_index(make_document(kvp("trxid", -1)));
+        }
     }
 
     std::map<uint64_t , fc::variant> mongo_worker::get_by_block_range(uint64_t _block_start,
@@ -122,10 +172,12 @@ namespace uos{
                     )
             );
             return bool(
-                    mongo_conn[connection_name][db_action_traces].find_one_and_update(
+                    mongo_conn[connection_name][db_action_traces].find_one_and_update( //todo
                     make_document(kvp("$and",
                                       make_array(make_document(kvp("blocknum", static_cast<int64_t>(blocknum))),
-                                                 make_document(kvp("blockid",block_id))))),
+                                                 make_document(kvp("blockid",block_id)),
+                                                 make_document(kvp("irreversible",false))
+                                      ))),
                     make_document(kvp("$set", make_document(kvp("irreversible",true))))
                     )
             );

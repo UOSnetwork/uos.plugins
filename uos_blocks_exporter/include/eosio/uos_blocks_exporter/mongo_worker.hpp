@@ -28,6 +28,7 @@ namespace uos{
     class mongo_worker{
 
         bool                        put_by_uniq_blocknum(const string &_val,const string &_db);
+        bool                        put_by_uniq_blocknum_trxid(const string &_val,const string &_db);
         fc::mutable_variant_object  get_by_blocknum(const uint32_t &_blocknum, const string &_db);
         std::map<uint64_t , fc::variant> get_by_block_range(uint64_t _block_start, uint64_t _block_end, const string &_db);
 

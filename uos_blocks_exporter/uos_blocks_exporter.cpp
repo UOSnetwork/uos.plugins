@@ -11,7 +11,7 @@ namespace uos_plugins{
 
 
 #define  UOS_DEFAULT_WHITELIST "{\"whitelist\":[]}"
-#define  UOS_DEFAULT_BLACKLIST "{\"blacklist\":[{\"contract\":\"eosio\",\"action\":\"onblock\"},{\"contract\":\"uos.calcs\",\"action\":\"setrate\"}]}"
+#define  UOS_DEFAULT_BLACKLIST "{\"blacklist\":[{\"contract\":\"eosio\",\"action\":\"onblock\"},{\"contract\":\"uos.calcs\",\"action\":\"setrate\"},{\"contract\":\"uos.calcs\",\"action\":\"addsum\"}]}"
 
     static appbase::abstract_plugin& _uos_BE = app().register_plugin<uos_BE>();
 
@@ -116,6 +116,7 @@ namespace uos_plugins{
             fc::mutable_variant_object mblock;
             mblock["blocknum"] = att->block_num;
             mblock["blockid"] = att->producer_block_id;
+            mblock["trxid"] = att->id;
             mblock["irreversible"] = false;
             mblock["actions"] = actions;
             mblock["blocktime"] = att->block_time;
