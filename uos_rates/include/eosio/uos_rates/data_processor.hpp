@@ -71,6 +71,9 @@ namespace uos {
         string resulting_emission;
         string real_resulting_emission;
 
+        set<string> st_make_id_contents;//unique
+        set<string> st_makeorg_id_contents;
+
         string result_hash;
 
         explicit data_processor(uint32_t calc_block){
@@ -226,18 +229,29 @@ namespace uos {
         auto block_num = stoi(trx["block_num"].as_string());
         auto block_height = current_calc_block - block_num;
 
+
+        //Todo:fix from to(action exclude duplicate )
         if (trx["action"].as_string() == "makecontent" ) {
 
             auto from = trx["data"]["acc"].as_string();
             auto to = trx["data"]["content_id"].as_string();
             auto content_type_id = trx["data"]["content_type_id"].as_string();
 
+
             //do not use "create orgainzation as the content" events, code 4
             if(content_type_id == "4")
                 return result;
 
-            ownership_t ownership(from, to, block_height);
-            result.push_back(std::make_shared<ownership_t>(ownership));
+
+            if(st_make_id_contents.insert(to).second == false)
+            {
+                elog(" \n Duplicate  social transaction makecontent - id_contens: " + to + " violator: "+ from);
+            } else
+            {
+                ownership_t ownership(from, to, block_height);
+                result.push_back(std::make_shared<ownership_t>(ownership));
+            }
+
         }
 
         if (trx["action"].as_string() == "usertocont") {
@@ -255,12 +269,21 @@ namespace uos {
                 result.push_back(std::make_shared<downvote_t>(downvote));
             }
         }
+        //Todo:fix from to(action exclude duplicate )
         if (trx["action"].as_string() == "makecontorg") {
 
             auto from = trx["data"]["organization_id"].as_string();
             auto to = trx["data"]["content_id"].as_string();
-            ownership_t ownershiporg(from, to, block_height);
-            result.push_back(std::make_shared<ownership_t>(ownershiporg));
+
+
+            if(st_makeorg_id_contents.insert(to).second == false)
+            {
+                elog(" \n Duplicate social transaction makecontorg - id_content:" + to + " violator: "+ from);
+            } else
+            {
+                ownership_t ownershiporg(from, to, block_height);
+                result.push_back(std::make_shared<ownership_t>(ownershiporg));
+            }
 
         }
 
