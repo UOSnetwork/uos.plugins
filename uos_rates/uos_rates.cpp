@@ -508,6 +508,7 @@ namespace eosio {
             item.trans_rate = dp.get_acc_string_value(name, "transfer_rate");
             item.trans_rate_scaled = dp.get_acc_string_value(name, "scaled_transfer_rate");
             item.staked_balance = dp.get_acc_string_value(name, "staked_balance");
+            item.validity = dp.get_acc_string_value(name, "validity");
             item.stake_rate = dp.get_acc_string_value(name, "stake_rate");
             item.stake_rate_scaled = dp.get_acc_string_value(name, "scaled_stake_rate");
             item.importance = dp.get_acc_string_value(name, "importance");

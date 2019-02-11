@@ -37,6 +37,7 @@ namespace eosio {
         string trans_rate = "0";
         string trans_rate_scaled = "0";
         string staked_balance = "0";
+        string validity = "0";
         string stake_rate = "0";
         string stake_rate_scaled = "0";
         string importance = "0";
@@ -85,6 +86,7 @@ namespace eosio {
                 ri.trans_rate = vi["trans_rate"].as_string();
                 ri.trans_rate_scaled = vi["trans_rate_scaled"].as_string();
                 ri.staked_balance = vi["staked_balance"].as_string();
+                ri.validity = vi["validity"].as_string();
                 ri.stake_rate = vi["stake_rate"].as_string();
                 ri.stake_rate_scaled = vi["stake_rate_scaled"].as_string();
                 ri.importance = vi["importance"].as_string();
@@ -119,6 +121,7 @@ namespace eosio {
                 res_var["trans_rate"] = item.second.trans_rate;
                 res_var["trans_rate_scaled"] = item.second.trans_rate_scaled;
                 res_var["staked_balance"] = item.second.staked_balance;
+                res_var["validity"] = item.second.validity;
                 res_var["stake_rate"] = item.second.stake_rate;
                 res_var["stake_rate_scaled"] = item.second.stake_rate_scaled;
                 res_var["importance"] = item.second.importance;
