@@ -329,7 +329,8 @@ namespace eosio {
         vector<string> heading{
                 "name",
                 "cpu_weight",
-                "net_weight"
+                "net_weight",
+                "liquid"
         };
 
         csv_result_userres.addDatainRow(heading.begin(), heading.end());
@@ -348,10 +349,15 @@ namespace eosio {
                 auto users_info = ro_api.get_account(params);
                 auto cpu_weight = to_string(users_info.cpu_weight);
                 auto net_weight = to_string(users_info.net_weight);
-//                auto staked = users_info.total_resources.as_string();
 
-//                elog("STAKED RESOUSES" + staked );
-                vector<string> result = {acc_name, cpu_weight, net_weight};
+
+                std::stringstream liquid;
+
+                if( users_info.core_liquid_balance.valid() )
+                    liquid << std::fixed << std::setprecision(10) << *users_info.core_liquid_balance;
+
+                vector<string> result = {acc_name, cpu_weight, net_weight, liquid.str()};
+
                 csv_result_userres.addDatainRow(result.begin(), result.end());
             }
             catch (exception &ex)
