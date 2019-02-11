@@ -30,6 +30,7 @@ namespace uos_plugins{
         std::map<std::string,std::set<std::string>> allowed_actions;
     private:
         std::shared_ptr<uos::mongo_worker> mongo;
+        uos::mongo_last_state last_state;
 //        std::shared_ptr<thread_safe::threadsafe_queue<std::string>> irreversible_blocks_queue;
 //        std::shared_ptr<thread_safe::threadsafe_queue<std::string>> accepted_blocks_queue;
         std::shared_ptr<std::set<std::string>> white_list;
@@ -48,6 +49,7 @@ namespace uos_plugins{
 //        accepted_blocks_queue = std::make_shared<thread_safe::threadsafe_queue<std::string>>();
         white_list = std::make_shared<std::set<std::string>>();
         black_list = std::make_shared<std::set<std::string>>();
+
 
     };
 
@@ -156,6 +158,8 @@ namespace uos_plugins{
     }
     void uos_BE::plugin_startup() {
         if(startup) {
+
+            my->last_state = my->mongo->get_last_state();
 
             eosio::chain::controller &cc = app().get_plugin<eosio::chain_plugin>().chain();
 

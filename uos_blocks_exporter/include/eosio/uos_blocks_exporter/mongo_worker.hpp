@@ -3,7 +3,10 @@
 #include <string>
 #include <fc/variant.hpp>
 #include <mongocxx/v_noabi/mongocxx/client.hpp>
+#include <mongocxx/v_noabi/mongocxx/collection.hpp>
+
 #include <mongocxx/v_noabi/mongocxx/options/update.hpp>
+#include <mongocxx/v_noabi/mongocxx/options/replace.hpp>
 #include <mongocxx/v_noabi/mongocxx/pool.hpp>
 #include <mongocxx/v_noabi/mongocxx/instance.hpp>
 #include <mongocxx/v_noabi/mongocxx/uri.hpp>
@@ -23,6 +26,13 @@ namespace uos{
         string   mongo_db_balances;
         string   mongo_user;
         string   mongo_password;
+    };
+
+    struct mongo_last_state{
+        int64_t  mongo_blocknum;
+        string   mongo_blockid;
+        int64_t  mongo_irrblocknum;
+        string   mongo_irrblockid;
     };
 
     class mongo_worker{
@@ -84,6 +94,9 @@ namespace uos{
         }
 
         void recheck_indexes();
+
+        mongo_last_state get_last_state();
+        void set_last_state(const mongo_last_state & state);
 
 //        fc::mutable_variant_object  get_block(const uint32_t &_blocknum);
 //        bool    put_block(const string& __val);

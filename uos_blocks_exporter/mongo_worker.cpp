@@ -6,6 +6,7 @@
 #include <fc/variant_object.hpp>
 #include <fc/exception/exception.hpp>
 #include <bsoncxx/builder/basic/document.hpp>
+#include <bsoncxx/builder/basic/array.hpp>
 #include <bsoncxx/builder/basic/kvp.hpp>
 #include <bsoncxx/validate.hpp>
 
@@ -190,6 +191,56 @@ namespace uos{
 //            elog("error");
         }
         return true;
+    }
+
+    mongo_last_state mongo_worker::get_last_state() {
+
+        if(!connected)
+            connect();
+        try{
+            auto last_state = mongo_conn[connection_name]["last_state"].find_one(make_document(kvp("last_state",1)));
+            mongo_last_state ret;
+            ret.mongo_blockid =     last_state.value().view()["blockid"].get_utf8().value.to_string();
+            ret.mongo_irrblockid =  last_state.value().view()["irrblockid"].get_utf8().value.to_string();
+            ret.mongo_blocknum =    last_state.value().view()["blocknnum"].get_int64().value;
+            ret.mongo_blockid =     last_state.value().view()["irrblocknnum"].get_int64().value;
+
+        }
+        catch(mongocxx::exception &ex){
+            elog(ex.what());
+            return {};
+        }
+        catch (...){
+//            elog("error");
+        }
+        return {};
+    }
+
+    void  mongo_worker::set_last_state(const uos::mongo_last_state &state) {
+        if(!connected)
+            connect();
+        try{
+            mongo_conn[connection_name]["last_state"].update_one(
+                    make_document(kvp("last_state",1)),
+                    make_document(
+                            kvp("$set",
+                                  make_document(
+                                      kvp("last_state",1),
+                                      kvp("blocknum",state.mongo_blocknum),
+                                      kvp("blockid",state.mongo_blockid),
+                                      kvp("irrblocknum",state.mongo_irrblocknum),
+                                      kvp("irrblockid",state.mongo_irrblockid))
+                            )
+                    )
+            );
+        }
+        catch(mongocxx::exception &ex){
+            elog(ex.what());
+            return;
+        }
+        catch (...){
+//            elog("error");
+        }
     }
 
 }
