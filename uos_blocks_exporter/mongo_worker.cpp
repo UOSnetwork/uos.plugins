@@ -173,7 +173,7 @@ namespace uos{
                     )
             );
             return bool(
-                    mongo_conn[connection_name][db_action_traces].find_one_and_update( //todo
+                    mongo_conn[connection_name][db_action_traces].update_many(
                     make_document(kvp("$and",
                                       make_array(make_document(kvp("blocknum", static_cast<int64_t>(blocknum))),
                                                  make_document(kvp("blockid",block_id)),
@@ -220,7 +220,9 @@ namespace uos{
         if(!connected)
             connect();
         try{
-            mongo_conn[connection_name]["last_state"].update_one(
+            mongocxx::v_noabi::options::update opt;
+            opt.upsert(true);
+            auto ret = mongo_conn[connection_name]["last_state"].update_one(
                     make_document(kvp("last_state",1)),
                     make_document(
                             kvp("$set",
@@ -231,8 +233,9 @@ namespace uos{
                                       kvp("irrblocknum",state.mongo_irrblocknum),
                                       kvp("irrblockid",state.mongo_irrblockid))
                             )
-                    )
+                    ),opt
             );
+
         }
         catch(mongocxx::exception &ex){
             elog(ex.what());

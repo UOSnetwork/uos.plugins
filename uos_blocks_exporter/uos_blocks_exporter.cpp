@@ -58,7 +58,10 @@ namespace uos_plugins{
     }
 
     void uos_BE_impl::irreversible_block_catcher(const eosio::chain::block_state_ptr &bsp) {
-        auto ret = mongo->set_irreversible_block(bsp->block_num,bsp->block->id());
+        mongo->set_irreversible_block(bsp->block_num,bsp->block->id());
+        last_state.mongo_irrblockid = bsp->block->id();
+        last_state.mongo_irrblocknum = bsp->block_num;
+        mongo->set_last_state(last_state);
 //        elog(std::string("-"+std::string(bsp->block->id())+" "+std::to_string(bsp->block_num)));
     }
 
@@ -84,6 +87,17 @@ namespace uos_plugins{
 
     void uos_BE_impl::applied_transaction_catcher(const eosio::chain::transaction_trace_ptr &att) {
         fc::variants actions;
+        try{
+            last_state.mongo_blockid = fc::variant(att->producer_block_id).as_string();
+            last_state.mongo_blocknum = att->block_num;
+            mongo->set_last_state(last_state);
+        }
+        catch (mongocxx::exception &ex){
+            elog(ex.what());
+        }
+        catch(...){
+
+        }
         for(auto item : att->action_traces){
             if( black_list->size() > 0 ){
                 if ( black_list->find(item.act.account.to_string()+"."+item.act.name.to_string()) !=black_list->end()){
@@ -98,9 +112,6 @@ namespace uos_plugins{
             else{
                 wlog("whitelist is empty");
             }
-//            if(item.act.account==N(eosio) && item.act.name==N(onblock)){
-//                continue;
-//            }
             actions.emplace_back(fill_inline_traces(item));
         }
         if(actions.size()>0){
@@ -113,8 +124,6 @@ namespace uos_plugins{
                     break;
                 }
             }
-//            if(consists_inlines)
-//                std::this_thread::sleep_for(std::chrono::seconds(10));
             fc::mutable_variant_object mblock;
             mblock["blocknum"] = att->block_num;
             mblock["blockid"] = att->producer_block_id;
@@ -125,6 +134,7 @@ namespace uos_plugins{
 
             try {
                 mongo->put_action_traces(fc::json::to_string(mblock));
+
             }
             catch (mongocxx::exception &ex){
                 elog(ex.what());
