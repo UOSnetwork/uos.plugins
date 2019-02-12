@@ -467,6 +467,9 @@ public:
                 res.prepare_payload();
                 return res;
             };
+            
+    if(ec == boost::system::errc::no_such_file_or_directory)
+        return send(not_found(req.target()));
     }
     // -------------------- >
     
