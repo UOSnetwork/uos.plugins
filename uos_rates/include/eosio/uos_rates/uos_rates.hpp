@@ -45,6 +45,10 @@ namespace eosio {
         string prev_cumulative_emission = "0";
         string current_emission = "0";
         string current_cumulative_emission = "0";
+        string intermediate_results_stack = "0";
+        string intermediate_default_initial = "0";
+        string intermediate_results_priority = "0";
+        string intermediate_results_trust = "0";
     };
 
     class result_set
@@ -87,6 +91,10 @@ namespace eosio {
                 ri.trans_rate_scaled = vi["trans_rate_scaled"].as_string();
                 ri.staked_balance = vi["staked_balance"].as_string();
                 ri.validity = vi["validity"].as_string();
+                ri.validity = vi["intermediate_results_stack"].as_string();
+                ri.validity = vi["intermediate_default_initial"].as_string();
+                ri.validity = vi["intermediate_results_priority"].as_string();
+                ri.validity = vi["intermediate_results_trust "].as_string();
                 ri.stake_rate = vi["stake_rate"].as_string();
                 ri.stake_rate_scaled = vi["stake_rate_scaled"].as_string();
                 ri.importance = vi["importance"].as_string();
@@ -130,6 +138,11 @@ namespace eosio {
                 res_var["prev_cumulative_emission"] = item.second.prev_cumulative_emission;
                 res_var["current_emission"] = item.second.current_emission;
                 res_var["current_cumulative_emission"] = item.second.current_cumulative_emission;
+
+                res_var["intermediate_results_stack"] = item.second.intermediate_results_stack;
+                res_var["intermediate_default_initial"] = item.second.intermediate_default_initial;
+                res_var["intermediate_results_priority"] = item.second.intermediate_results_priority;
+                res_var["intermediate_results_trust"] = item.second.intermediate_results_trust;
 
                 res_list.push_back(res_var);
             }

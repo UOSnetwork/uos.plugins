@@ -62,6 +62,7 @@ namespace uos {
         //calculation details
         singularity::activity_index_detalization_t activity_details;
         singularity::activity_index_detalization_t content_details;
+        singularity::intermediate_results_t  intermediate_results;
 
         string network_activity;
         string max_network_activity;
@@ -200,7 +201,7 @@ namespace uos {
 
 
             //TODO::check json is valid; check validate to name
-            if (action_json.find("trust") != std::string::npos && action_json.find("singularity5") != std::string::npos || action_json.find("petr") != std::string::npos|| action_json.find("producer") != std::string::npos ) {
+            if (action_json.find("trust") != std::string::npos) {
 
                 auto json_data = fc::json::from_string(action_json);
                 auto from = json_data["data"]["account_from"].as_string();
@@ -313,18 +314,26 @@ namespace uos {
         singularity::parameters_t params;
         params.include_detailed_data = true;
         params.use_diagonal_elements = true;
+        params.weight_contribution = 0.8;
+        params.stack_contribution = 0;
 
         map <string, double_type> validity;
+        map <string, double_type> stake;
+
         for(auto item: accounts)
         {
             double coeff = get_acc_double_value(item.first, "validity");
+            double staked_balance = get_acc_double_value(item.first, "staked_balance");
+            stake.insert(std::pair<string, double_type>(item.first, (double_type)staked_balance));
             validity.insert(std::pair<string, double_type>(item.first, (double_type)coeff));
         }
 
         auto social_calculator =
                 singularity::rank_calculator_factory::create_calculator_for_social_network(params);
 
-        social_calculator->set_weights(validity);
+//        social_calculator->set_weights(validity);
+//        social_calculator->set_priorities(validity);
+        social_calculator->add_stack_vector(stake);
 
         social_calculator->add_block(social_relations);
         auto social_rates = social_calculator->calculate();
@@ -343,6 +352,18 @@ namespace uos {
 
         activity_details = social_calculator->get_detalization();
         content_details = social_calculator->get_content_detalization();
+
+        intermediate_results = social_calculator->get_last_intermediate_results();
+
+
+        for(auto item:intermediate_results.stack)
+            accounts[item.first].set("intermediate_results_stack", to_string_10(item.second));
+        for(auto item:intermediate_results.default_initial)
+            accounts[item.first].set("intermediate_default_initial", to_string_10(item.second));
+        for(auto item:intermediate_results.priority)
+            accounts[item.first].set("intermediate_results_priority", to_string_10(item.second));
+        for(auto item:intermediate_results.trust)
+            accounts[item.first].set("intermediate_results_trust", to_string_10(item.second));
     }
 
     void data_processor::calculate_transfer_rates() {

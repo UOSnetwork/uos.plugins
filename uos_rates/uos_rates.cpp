@@ -517,6 +517,11 @@ namespace eosio {
             item.current_emission = dp.get_acc_string_value(name, "current_emission");
             item.current_cumulative_emission = dp.get_acc_string_value(name, "current_cumulative_emission");
 
+            item.intermediate_results_stack = dp.get_acc_string_value(name, "intermediate_results_stack");
+            item.intermediate_default_initial = dp.get_acc_string_value(name, "intermediate_default_initial");
+            item.intermediate_results_priority = dp.get_acc_string_value(name, "intermediate_results_priority");
+            item.intermediate_results_trust = dp.get_acc_string_value(name, "intermediate_results_trust");
+
             result.res_map[name] = item;
         }
 
@@ -754,11 +759,16 @@ namespace eosio {
                 "staked_balance",
                 "stake_rate",
                 "stake_rate_scaled",
+                "validity",
                 "importance",
                 "importance_scaled",
                 "current_emission",
                 "prev_cumulative_emission",
-                "current_cumulative_emission"
+                "current_cumulative_emission",
+                "intermediate_results_stack",
+                "intermediate_default_initial",
+                "intermediate_results_priority" ,
+                "intermediate_results_trust"
         };
         csv_result.addDatainRow(heading.begin(), heading.end());
 
@@ -774,11 +784,16 @@ namespace eosio {
                 item.second.staked_balance,
                 item.second.stake_rate,
                 item.second.stake_rate_scaled,
+                item.second.validity,
                 item.second.importance,
                 item.second.importance_scaled,
                 item.second.current_emission,
                 item.second.prev_cumulative_emission,
-                item.second.current_cumulative_emission
+                item.second.current_cumulative_emission,
+                item.second.intermediate_results_stack,
+                item.second.intermediate_default_initial,
+                item.second.intermediate_results_priority,
+                item.second.intermediate_results_trust
             };
             csv_result.addDatainRow(vec.begin(), vec.end());
         }
