@@ -34,6 +34,7 @@ namespace uos{
                 catch (mongocxx::exception exception) {
                     elog(exception.what());
                 }
+                catch(...){}
                 try {
                     mongocxx::options::insert test_o;
                     test_o.bypass_document_validation(false);
@@ -42,12 +43,14 @@ namespace uos{
                 catch (mongocxx::exception exception) {
                     elog(exception.what());
                 }
+                catch(...){}
                 return true;
             }
         }
         catch (fc::exception exception){
             std::cout<<exception.to_string()<<std::endl;
         }
+        catch(...){}
         return false;
     }
     bool mongo_worker::put_by_uniq_blocknum_trxid(const std::string &_val, const std::string &_db) {
@@ -82,6 +85,7 @@ namespace uos{
                 catch (mongocxx::exception exception) {
                     elog(exception.what());
                 }
+                catch(...){}
                 try {
                     mongocxx::options::insert test_o;
                     test_o.bypass_document_validation(false);
@@ -90,25 +94,32 @@ namespace uos{
                 catch (mongocxx::exception exception) {
                     elog(exception.what());
                 }
+                catch(...){}
                 return true;
             }
         }
         catch (fc::exception exception){
             std::cout<<exception.to_string()<<std::endl;
         }
+        catch(...){}
         return false;
     }
 
     fc::mutable_variant_object mongo_worker::get_by_blocknum(const uint32_t &_blocknum, const std::string &_db) {
         if(!connected)
             connect();
-        auto cursor = mongo_conn[connection_name][_db].find(make_document(kvp("blocknum",int64_t (_blocknum))));
-        fc::mutable_variant_object temp;
-        uint32_t i = 0;
-        for (auto&& doc : cursor) {
-            temp[std::to_string(i)] = fc::json::from_string(bsoncxx::to_json(doc));
+        try {
+            auto cursor = mongo_conn[connection_name][_db].find(make_document(kvp("blocknum", int64_t(_blocknum))));
+            fc::mutable_variant_object temp;
+            uint32_t i = 0;
+            for (auto &&doc : cursor) {
+                temp[std::to_string(i)] = fc::json::from_string(bsoncxx::to_json(doc));
+            }
+            return temp;
         }
-        return temp;
+        catch (...){
+            return {};
+        }
     }
 
     fc::mutable_variant_object mongo_worker::get_action_traces(const uint32_t &_blocknum) {
