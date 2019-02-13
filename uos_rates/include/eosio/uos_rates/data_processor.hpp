@@ -245,7 +245,7 @@ namespace uos {
 
             if(st_make_id_contents.insert(to).second == false)
             {
-                elog(" \n Duplicate  social transaction makecontent - id_contens: " + to + " violator: "+ from);
+                elog(" \n Duplicate  social transaction makecontent - id_contens: " + to + " pirate: "+ from);
             } else
             {
                 ownership_t ownership(from, to, block_height);
@@ -276,9 +276,9 @@ namespace uos {
             auto to = trx["data"]["content_id"].as_string();
 
 
-            if(st_makeorg_id_contents.insert(to).second == false)
+            if(st_make_id_contents.insert(to).second == false)
             {
-                elog(" \n Duplicate social transaction makecontorg - id_content:" + to + " violator: "+ from);
+                elog(" \n Duplicate social transaction makecontorg - id_content:" + to + " pirate: "+ from);
             } else
             {
                 ownership_t ownershiporg(from, to, block_height);
@@ -469,15 +469,11 @@ namespace uos {
         {
             double  stake_others_balance = 0;
             double coeff = 0;
-//            cout << it->first << ": ";
             double  stake_own_balance = get_acc_double_value(it->first,"staked_balance");
             set<string> &st(it->second);
             for(auto i: st){
-//                ilog(i);
                 stake_others_balance += get_acc_double_value(i,"staked_balance");
-//                elog("Stake others balance: " + to_string_10(stake_others_balance));
                 double sum_stake = stake_own_balance + stake_others_balance;
-//                elog("Summa  others own balance: " + to_string_10(sum_stake));
                 coeff = (stake_own_balance + stake_others_balance) /(double)total_stake;
 
             }
