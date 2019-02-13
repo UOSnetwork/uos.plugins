@@ -118,7 +118,6 @@ namespace eosio {
         string custom_snapshot_file = "";
         string custom_transactions_cache_file = "";
 
-
         vector<std::shared_ptr<singularity::relation_t>> my_transfer_interactions;
         uint64_t last_calc_block = 0;
         result_set result = result_set(0); //TODO use pointer
@@ -482,7 +481,7 @@ namespace eosio {
         dp.calculate_transfer_rates();
         dp.calculate_stake_rates();
 
-        dp.calculate_importance();
+        dp.calculate_importance(social_importance_share,transfer_importance_share);
         dp.calculate_scaled_values();
 
         //calculations of the emission
@@ -1164,6 +1163,8 @@ namespace eosio {
                 ("custom-transactions-cache", boost::program_options::value<std::string>()->default_value(""), "")
                 ("custom-snapshot", boost::program_options::value<std::string>()->default_value(""), "")
                 ("custom-calc-block", boost::program_options::value<int32_t>()->default_value(0), "Custom number of blocks ")
+                ("social-importance-share", boost::program_options::value<double>()->default_value(0.1), " ")
+                ("transfer-importance-share", boost::program_options::value<double>()->default_value(0.1), " ")
                 ;
     }
 
@@ -1192,6 +1193,8 @@ namespace eosio {
         my->custom_calc_block = options.at("custom-calc-block").as<int32_t>();
         my->custom_transactions_cache_file = options.at("custom-transactions-cache").as<std::string>();
         my->custom_snapshot_file = options.at("custom-snapshot").as<std::string>();
+        my->social_importance_share = options.at("social-importance-share").as<double>();
+        my->transfer_importance_share = options.at("transfer-importance-share").as<double>();
 
     }
 

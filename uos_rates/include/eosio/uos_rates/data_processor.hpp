@@ -33,9 +33,9 @@ namespace uos {
         uint32_t transaction_window = 100*86400*2;//100 days
         uint32_t activity_window = 30*86400*2; //30 days
 
-        double social_importance_share = 0.1;
-        double transfer_importance_share = 0.1;
-        double stake_importance_share = 1.0 - social_importance_share - transfer_importance_share;
+//        double social_importance_share = 0.1;
+//        double transfer_importance_share = 0.1;
+//        double stake_importance_share = 1.0 - social_importance_share - transfer_importance_share;
 
         const double activity_monetary_value = 1000;
         const uint8_t blocks_per_second = 2;
@@ -90,7 +90,7 @@ namespace uos {
         void calculate_social_rates();
         void calculate_transfer_rates();
         void calculate_stake_rates();
-        void calculate_importance();
+        void calculate_importance(double social_importance_share,double transfer_importance_share);
 
         void calculate_scaled_values();
 
@@ -385,7 +385,16 @@ namespace uos {
         }
     }
 
-    void data_processor::calculate_importance() {
+    void data_processor::calculate_importance(double social_importance_share,double transfer_importance_share) {
+        if((social_importance_share + transfer_importance_share) > 1)
+        {
+            social_importance_share = 0.1;
+            transfer_importance_share = 0.1;
+            elog("Summa social_importance_share and transfer_importance_share more than 1.Set default value 0.1 and 0.1 ");
+        }
+
+        double stake_importance_share = 1-(social_importance_share + transfer_importance_share);
+
         for (auto item : accounts){
             double importance = get_acc_double_value(item.first, "social_rate") * social_importance_share +
                                 get_acc_double_value(item.first, "transfer_rate") * transfer_importance_share +
