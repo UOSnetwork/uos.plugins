@@ -226,7 +226,6 @@ namespace uos {
         auto block_height = current_calc_block - block_num;
 
 
-        //Todo:fix from to(action exclude duplicate )
         if (trx["action"].as_string() == "makecontent" ) {
 
             auto from = trx["data"]["acc"].as_string();
@@ -238,16 +237,20 @@ namespace uos {
             if(content_type_id == "4")
                 return result;
 
+            if(prev_cumulative_emission.find(to) != prev_cumulative_emission.end())
+            {
+                elog("makecontent to user rejected "+ from + " to " + to);
+                return result;
+            }
 
             if(st_make_id_contents.insert(to).second == false)
             {
                 elog(" \n Duplicate  social transaction makecontent - id_contens: " + to + " pirate: "+ from);
-            } else
-            {
-                ownership_t ownership(from, to, block_height);
-                result.push_back(std::make_shared<ownership_t>(ownership));
+                return result;
             }
 
+            ownership_t ownership(from, to, block_height);
+            result.push_back(std::make_shared<ownership_t>(ownership));
         }
 
         if (trx["action"].as_string() == "usertocont") {
@@ -271,22 +274,26 @@ namespace uos {
                 result.push_back(std::make_shared<downvote_t>(downvote));
             }
         }
-        //Todo:fix from to(action exclude duplicate )
+
         if (trx["action"].as_string() == "makecontorg") {
 
             auto from = trx["data"]["organization_id"].as_string();
             auto to = trx["data"]["content_id"].as_string();
 
+            if(prev_cumulative_emission.find(to) != prev_cumulative_emission.end())
+            {
+                elog("makecontorg to user rejected "+ from + " to " + to);
+                return result;
+            }
 
             if(st_make_id_contents.insert(to).second == false)
             {
                 elog(" \n Duplicate social transaction makecontorg - id_content:" + to + " pirate: "+ from);
-            } else
-            {
-                ownership_t ownershiporg(from, to, block_height);
-                result.push_back(std::make_shared<ownership_t>(ownershiporg));
+                return result;
             }
 
+            ownership_t ownershiporg(from, to, block_height);
+            result.push_back(std::make_shared<ownership_t>(ownershiporg));
         }
 
         return result;
@@ -305,6 +312,11 @@ namespace uos {
             }
             //add the content
             else {
+                if(prev_cumulative_emission.find(to) != prev_cumulative_emission.end())
+                {
+                    elog("makeconent rejected again " + from + " " + to);
+                    return;
+                }
                 if(content.find(to) == content.end())
                     content[to] = fc::mutable_variant_object();
             }
