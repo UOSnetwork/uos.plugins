@@ -256,6 +256,12 @@ namespace uos {
             auto to = trx["data"]["content_id"].as_string();
             auto interaction_type_id = trx["data"]["interaction_type_id"].as_string();
 
+            if(prev_cumulative_emission.find(to) != prev_cumulative_emission.end())
+            {
+                elog("upvote to user rejected "+ from + " to " + to);
+                return result;
+            }
+
             if(interaction_type_id == "2") {
                 upvote_t upvote(from, to, block_height);
                 result.push_back(std::make_shared<upvote_t>(upvote));
