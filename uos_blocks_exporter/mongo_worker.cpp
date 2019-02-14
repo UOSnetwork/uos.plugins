@@ -205,17 +205,23 @@ namespace uos{
     }
 
     mongo_last_state mongo_worker::get_last_state() {
-
+        elog("here");
         if(!connected)
             connect();
         try{
             auto last_state = mongo_conn[connection_name]["last_state"].find_one(make_document(kvp("last_state",1)));
             mongo_last_state ret;
-            ret.mongo_blockid =     last_state.value().view()["blockid"].get_utf8().value.to_string();
-            ret.mongo_irrblockid =  last_state.value().view()["irrblockid"].get_utf8().value.to_string();
-            ret.mongo_blocknum =    last_state.value().view()["blocknnum"].get_int64().value;
-            ret.mongo_blockid =     last_state.value().view()["irrblocknnum"].get_int64().value;
-
+            if(last_state) {
+                auto temp = fc::json::from_string(bsoncxx::to_json(last_state->view()));
+                ret.mongo_blockid = temp.get_object()["blockid"].as_string();
+                ret.mongo_irrblockid = temp.get_object()["irrblockid"].as_string();
+                ret.mongo_blocknum = temp.get_object()["blocknum"].as_int64();
+                ret.mongo_irrblocknum = temp.get_object()["irrblocknum"].as_int64();
+                return ret;
+            }
+            else{
+                elog("!lastplace");
+            }
         }
         catch(mongocxx::exception &ex){
             elog(ex.what());
