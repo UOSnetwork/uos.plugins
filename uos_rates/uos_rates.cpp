@@ -791,7 +791,9 @@ namespace eosio {
         fc::mutable_variant_object version_info;
         version_info["version"] = fc::variant(lib_version);
         version_info["branch"] = fc::variant(branch);
+        auto importance_params = to_string(social_importance_share) + "-" + to_string(transfer_importance_share) + "-" + to_string(1.0 - social_importance_share - transfer_importance_share);
         version_info["commit_hash"] = fc::variant(commit_hash);
+        version_info["importance_params"] = fc::variant(importance_params);
         for(auto calc_name : calculators) {
             ilog(calc_name.to_string() + " reportring hash " + result.result_hash +
                  " for block " + to_string(result.block_num));

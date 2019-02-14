@@ -33,10 +33,6 @@ namespace uos {
         uint32_t transaction_window = 100*86400*2;//100 days
         uint32_t activity_window = 30*86400*2; //30 days
 
-//        double social_importance_share = 0.1;
-//        double transfer_importance_share = 0.1;
-//        double stake_importance_share = 1.0 - social_importance_share - transfer_importance_share;
-
         const double activity_monetary_value = 1000;
         const uint8_t blocks_per_second = 2;
         const double yearly_emission_percent = 1.0;
