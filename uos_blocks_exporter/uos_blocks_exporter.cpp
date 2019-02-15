@@ -39,12 +39,6 @@ namespace uos_plugins{
     };
 
     uos_BE_impl::uos_BE_impl(){
-//        uos::mongo_params params;
-//        params.mongo_uri = "mongodb://localhost";
-//        params.mongo_user = "";
-//        params.mongo_password = "";
-//        params.mongo_connection_name = "testbase";          ///database
-//        params.mongo_db_action_traces = "action_traces";    ///collection_name
 
 //        accepted_blocks_queue = std::make_shared<thread_safe::threadsafe_queue<std::string>>();
         white_list = std::make_shared<std::set<std::string>>();
@@ -153,9 +147,7 @@ namespace uos_plugins{
     void uos_BE::set_program_options(boost::program_options::options_description &,
                                      boost::program_options::options_description &cfg) {
         cfg.add_options()
-                ("uos-mongo-uri",      boost::program_options::value<std::string>()->default_value("mongodb://localhost"), "MongoDB URI")
-                ("uos-mongo-user",     boost::program_options::value<std::string>()->default_value(""), "MongoDB user")
-                ("uos-mongo-password", boost::program_options::value<std::string>()->default_value(""), "MongoDB password")
+                ("uos-mongo-uri",      boost::program_options::value<std::string>()->default_value("mongodb://localhost"), "MongoDB URI/ Exmaple: mongodb://user:password@address:port")
                 ("uos-mongo-database", boost::program_options::value<std::string>()->default_value("uos-database"), "Database for collections")
 
                 ("uos-mongo-whitelist-contracts", boost::program_options::value<std::string>()->default_value(UOS_DEFAULT_WHITELIST),"what accounts and actions should be saved")
@@ -209,8 +201,6 @@ namespace uos_plugins{
 
             my->MongoConnectionParams.mongo_uri =               options.at("uos-mongo-uri").as<std::string>();
             my->MongoConnectionParams.mongo_connection_name =   options.at("uos-mongo-database").as<std::string>();
-            my->MongoConnectionParams.mongo_user =              options.at("uos-mongo-user").as<std::string>();
-            my->MongoConnectionParams.mongo_password =          options.at("uos-mongo-password").as<std::string>();
             my->MongoConnectionParams.mongo_db_action_traces =  "action_traces";
 
             my->mongo_init();
