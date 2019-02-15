@@ -24,8 +24,6 @@ namespace uos{
         string   mongo_db_blocks;
         string   mongo_db_results;
         string   mongo_db_balances;
-        string   mongo_user;
-        string   mongo_password;
     };
 
     struct mongo_last_state{
@@ -49,8 +47,6 @@ namespace uos{
         string db_results;
         string db_balances;
         string db_action_traces;
-        string user;
-        string password;
         bool connected = false;
 
         mongocxx::client mongo_conn;
@@ -64,8 +60,6 @@ namespace uos{
                  db_results(_db_results),
                  db_balances(_db_balances),
                  db_action_traces(_db_action_traces)
-                 //user
-                 //password
         {
             mongo_conn = mongocxx::client{mongocxx::uri(uri)};
             connected = true;
@@ -78,9 +72,7 @@ namespace uos{
                  db_blocks(params.mongo_db_blocks),
                  db_results(params.mongo_db_results),
                  db_balances(params.mongo_db_balances),
-                 db_action_traces(params.mongo_db_action_traces),
-                 user(params.mongo_user),
-                 password(params.mongo_password)
+                 db_action_traces(params.mongo_db_action_traces)
         {
             mongo_conn = mongocxx::client{mongocxx::uri(uri)};
             connected = true;
