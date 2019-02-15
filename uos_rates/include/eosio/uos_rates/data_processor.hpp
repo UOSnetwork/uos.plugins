@@ -18,6 +18,7 @@
 //#include <boost/program_options.hpp>
 //#include "../../../../../../libraries/fc/include/fc/variant.hpp"
 typedef boost::multiprecision::number< boost::multiprecision::cpp_dec_float<10> > double_type;
+typedef std::shared_ptr<singularity::relation_t> p_sing_relation_t;
 
 
 namespace uos {
@@ -49,6 +50,8 @@ namespace uos {
         vector<std::shared_ptr<singularity::relation_t>> transfer_relations;
         vector<std::shared_ptr<singularity::relation_t>> social_relations;
         vector<std::shared_ptr<singularity::relation_t>> trust_relations;//new type relations
+        map<string,vector<p_sing_relation_t>> common_relations;//trust and reference
+
         vector<singularity::transaction_t> activity_relations;
 
         //output
@@ -68,8 +71,6 @@ namespace uos {
         string real_resulting_emission;
 
         set<string> st_make_id_contents;//unique
-        set<string> st_makeorg_id_contents;
-
         string result_hash;
 
         explicit data_processor(uint32_t calc_block){
@@ -79,7 +80,15 @@ namespace uos {
         void convert_transactions_to_relations();
         vector<std::shared_ptr<singularity::relation_t>> parse_token_transaction(fc::variant trx);
         vector<std::shared_ptr<singularity::relation_t>> parse_social_transaction(fc::variant trx);
+        /**
+         * @brief parse_trust_transaction deprecated
+         * @param trx
+         * @return
+         */
         vector<std::shared_ptr<singularity::relation_t>> parse_trust_transaction(fc::variant trx);
+
+        map<string,vector<p_sing_relation_t>> parse_ext_social_transaction(fc::variant trx);
+
         void add_lost_items(fc::variant trx);
 
         void calculate_validity_accounts();
@@ -133,6 +142,7 @@ namespace uos {
                 continue;
 
             vector<std::shared_ptr<singularity::relation_t>> relations;
+            map<string,vector<p_sing_relation_t>> com_relations;
 
             if(trx["acc"].as_string() == "eosio.token") {
                 relations = parse_token_transaction(trx);
@@ -145,8 +155,15 @@ namespace uos {
             }
 
             if(trx["acc"].as_string() == "uos.activity" && trx["action"].as_string() == "socialaction") {
-                relations = parse_trust_transaction(trx);
-                trust_relations.insert(trust_relations.end(),relations.begin(), relations.end());
+
+                common_relations = parse_ext_social_transaction(trx);
+
+                auto it = common_relations.find("trust");
+                if (it != common_relations.end()) {
+                    relations = it->second;
+//                relations = parse_trust_transaction(trx);
+//                trust_relations.insert(trust_relations.end(),relations.begin(), relations.end());
+                }
             }
 
             if(block_num < activity_start_block || block_num > activity_end_block)
@@ -210,6 +227,50 @@ namespace uos {
         return result;
     }
 
+    map<string,vector<p_sing_relation_t>> data_processor::parse_ext_social_transaction(fc::variant trx)
+    {
+
+        vector<p_sing_relation_t> trust_result;
+        vector <p_sing_relation_t>reference_result;
+        map<string,vector<p_sing_relation_t>> result;
+
+        if (trx["action"].as_string() == "socialaction" ) {
+
+            auto block_num = stoi(trx["block_num"].as_string());
+            auto block_height = current_calc_block - block_num;
+
+
+            auto from = trx["data"]["acc"].as_string();
+            auto action_json = trx["data"]["action_json"].as_string();
+
+
+            //TODO::check json is valid; check validate to name
+            if (action_json.find("trust") != std::string::npos ) {
+
+                auto json_data = fc::json::from_string(action_json);
+                auto from = json_data["data"]["account_from"].as_string();
+                auto to = json_data["data"]["account_to"].as_string();
+
+                trust_t trust(from, to, block_height);
+                trust_result.push_back(std::make_shared<trust_t>(trust));
+            }
+
+            if (action_json.find("reference") != std::string::npos ) {
+
+                auto json_data = fc::json::from_string(action_json);
+                auto from = json_data["data"]["account_from"].as_string();
+                auto to = json_data["data"]["account_to"].as_string();
+
+                reference_t reference(from, to, block_height);
+                reference_result.push_back(std::make_shared<reference_t>(reference));
+            }
+
+            result.insert(make_pair("trust",trust_result));
+            result.insert(make_pair("reference",reference_result));
+        }
+
+        return result;
+    }
 
     vector<std::shared_ptr<singularity::relation_t>> data_processor::parse_social_transaction(fc::variant trx){
 
@@ -478,8 +539,13 @@ namespace uos {
         multimap <string,string> relation_trust;
         map <string, set<string> > trust_relations_u;
 
+
+        auto it = common_relations.find("trust");
+        if (it != common_relations.end()) {
+            auto trust_relations = it->second;
         for( const auto& rel : trust_relations )
             relation_trust.insert(std::pair<string, string>(rel->get_target(), rel->get_source()));
+        }
 
         for (multimap<string,string>::const_iterator it = relation_trust.begin(); it != relation_trust.end(); ++it)
         {
