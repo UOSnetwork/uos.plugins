@@ -88,10 +88,11 @@ namespace uos_plugins{
     void uos_BE_impl::applied_transaction_catcher(const eosio::chain::transaction_trace_ptr &att) {
         fc::variants actions;
         try{
-            fc::variant temp = att->producer_block_id;
-            last_state.mongo_blockid = temp.as_string();
-            last_state.mongo_blocknum = att->block_num;
-            mongo->set_last_state(last_state);
+            if(att->producer_block_id) {
+                last_state.mongo_blockid = fc::variant(att->producer_block_id).as_string();
+                last_state.mongo_blocknum = att->block_num;
+                mongo->set_last_state(last_state);
+            }
         }
         catch (mongocxx::exception &ex){
             elog(ex.what());
