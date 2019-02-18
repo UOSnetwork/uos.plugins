@@ -12,6 +12,7 @@
 #include <mongocxx/v_noabi/mongocxx/uri.hpp>
 #include <mongocxx/v_noabi/mongocxx/exception/exception.hpp>
 #include <list>
+#include <atomic>
 
 namespace uos{
 
@@ -48,6 +49,7 @@ namespace uos{
         string db_balances;
         string db_action_traces;
         bool connected = false;
+        std::atomic_bool stop;
 
         mongocxx::client mongo_conn;
         mongocxx::instance inst;
@@ -59,7 +61,8 @@ namespace uos{
                  db_blocks(_db_blocks),
                  db_results(_db_results),
                  db_balances(_db_balances),
-                 db_action_traces(_db_action_traces)
+                 db_action_traces(_db_action_traces),
+                 stop(false)
         {
             mongo_conn = mongocxx::client{mongocxx::uri(uri)};
             connected = true;
@@ -72,7 +75,8 @@ namespace uos{
                  db_blocks(params.mongo_db_blocks),
                  db_results(params.mongo_db_results),
                  db_balances(params.mongo_db_balances),
-                 db_action_traces(params.mongo_db_action_traces)
+                 db_action_traces(params.mongo_db_action_traces),
+                 stop(false)
         {
             mongo_conn = mongocxx::client{mongocxx::uri(uri)};
             connected = true;

@@ -30,6 +30,7 @@ namespace uos_plugins{
         std::map<std::string,std::set<std::string>> allowed_actions;
     private:
         std::shared_ptr<uos::mongo_worker> mongo;
+        std::shared_ptr<std::thread> mongo_thread;
         uos::mongo_last_state last_state;
 //        std::shared_ptr<thread_safe::threadsafe_queue<std::string>> irreversible_blocks_queue;
 //        std::shared_ptr<thread_safe::threadsafe_queue<std::string>> accepted_blocks_queue;
@@ -158,6 +159,12 @@ namespace uos_plugins{
 
 
     void uos_BE::plugin_shutdown() {
+        if(my->mongo_thread != nullptr && my->mongo != nullptr){
+            if(my->mongo_thread->joinable()){
+                my->mongo->stop = true;
+                my->mongo_thread->join();
+            }
+        }
 
     }
     void uos_BE::plugin_startup() {
