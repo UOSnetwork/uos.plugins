@@ -49,7 +49,6 @@ namespace uos{
         string db_balances;
         string db_action_traces;
         bool connected = false;
-        std::atomic_bool stop;
 
         mongocxx::client mongo_conn;
         mongocxx::instance inst;
@@ -61,8 +60,7 @@ namespace uos{
                  db_blocks(_db_blocks),
                  db_results(_db_results),
                  db_balances(_db_balances),
-                 db_action_traces(_db_action_traces),
-                 stop(false)
+                 db_action_traces(_db_action_traces)
         {
             mongo_conn = mongocxx::client{mongocxx::uri(uri)};
             connected = true;
@@ -75,8 +73,7 @@ namespace uos{
                  db_blocks(params.mongo_db_blocks),
                  db_results(params.mongo_db_results),
                  db_balances(params.mongo_db_balances),
-                 db_action_traces(params.mongo_db_action_traces),
-                 stop(false)
+                 db_action_traces(params.mongo_db_action_traces)
         {
             mongo_conn = mongocxx::client{mongocxx::uri(uri)};
             connected = true;
@@ -94,22 +91,10 @@ namespace uos{
         mongo_last_state get_last_state();
         void set_last_state(const mongo_last_state & state);
 
-//        fc::mutable_variant_object  get_block(const uint32_t &_blocknum);
-//        bool    put_block(const string& __val);
-//
-//        fc::mutable_variant_object  get_balances(const uint32_t& _blocknum);
-//        bool    put_balances(const string& __val);
-//
-//        fc::mutable_variant_object  get_results(const uint32_t& _blocknum);
-//        bool    put_results(const string& __val);
-
         fc::mutable_variant_object  get_action_traces(const uint32_t &_blocknum);
         bool    put_action_traces(const string& __val);
         bool    set_irreversible_block(const uint32_t &blocknum, const string &block_id);
 
-//        std::map<uint64_t , fc::variant> get_blocks_range(const uint64_t &_block_start, const uint64_t &_block_end);
-//        std::map<uint64_t , fc::variant> get_results_range(const uint64_t &_block_start, const uint64_t &_block_end);
-//        std::map<uint64_t , fc::variant> get_balances_range(const uint64_t &_block_start, const uint64_t &_block_end);
         std::map<uint64_t , fc::variant> get_action_traces_range(const uint64_t &_block_start, const uint64_t &_block_end);
 
     };

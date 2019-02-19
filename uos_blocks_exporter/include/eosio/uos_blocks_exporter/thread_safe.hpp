@@ -74,7 +74,7 @@ namespace thread_safe {
 		shared_ptr <T> try_pop() {
 			lock_guard <mutex> lock(mut);
 			if (data_queue.empty())
-				return shared_ptr<T>();
+				return shared_ptr<T>(nullptr);
 			shared_ptr <T> res(make_shared<T>(data_queue.front()));
 			data_queue.pop();
 			return res;
