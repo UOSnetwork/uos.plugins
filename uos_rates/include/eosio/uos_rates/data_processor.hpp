@@ -187,23 +187,29 @@ namespace uos {
 
         if (trx["action"].as_string() == "socialaction" ) {
 
-            auto block_num = stoi(trx["block_num"].as_string());
-            auto block_height = current_calc_block - block_num;
+            try {
+                auto block_num = stoi(trx["block_num"].as_string());
+                auto block_height = current_calc_block - block_num;
 
 
-            auto from = trx["data"]["acc"].as_string();
-            auto action_json = trx["data"]["action_json"].as_string();
+                auto from = trx["data"]["acc"].as_string();
+                auto action_json = trx["data"]["action_json"].as_string();
 
 
-            //TODO::check json is valid; check validate to name
-            if (action_json.find("trust") != std::string::npos ) {
+                //TODO::check json is valid; check validate to name
+                if (action_json.find("trust") != std::string::npos) {
 
-                auto json_data = fc::json::from_string(action_json);
-                auto from = json_data["data"]["account_from"].as_string();
-                auto to = json_data["data"]["account_to"].as_string();
+                    auto json_data = fc::json::from_string(action_json);
+                    auto from = json_data["data"]["account_from"].as_string();
+                    auto to = json_data["data"]["account_to"].as_string();
 
-                trust_t trust(from, to, block_height);
-                result.push_back(std::make_shared<trust_t>(trust));
+                    trust_t trust(from, to, block_height);
+                    result.push_back(std::make_shared<trust_t>(trust));
+                }
+            }
+            catch (...){
+                elog("error when parsing trust transaction");
+                ilog(fc::json::to_string(trx));
             }
         }
 
