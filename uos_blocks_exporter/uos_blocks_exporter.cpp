@@ -24,15 +24,18 @@ namespace uos_plugins{
         void accepted_transaction_catcher(const eosio::chain::transaction_metadata_ptr& atm);
         void applied_transaction_catcher(const eosio::chain::transaction_trace_ptr & att);
         void mongo_init();
+        void queue_processor();
 
         boost::program_options::variables_map _options;
         friend class uos_BE;
         std::map<std::string,std::set<std::string>> allowed_actions;
     private:
+        std::atomic_bool stop;
         std::shared_ptr<uos::mongo_worker> mongo;
+        std::shared_ptr<std::thread> mongo_thread;
         uos::mongo_last_state last_state;
 //        std::shared_ptr<thread_safe::threadsafe_queue<std::string>> irreversible_blocks_queue;
-//        std::shared_ptr<thread_safe::threadsafe_queue<std::string>> accepted_blocks_queue;
+        std::shared_ptr<thread_safe::threadsafe_queue<std::string>> accepted_blocks_queue;
         std::shared_ptr<std::set<std::string>> white_list;
         std::shared_ptr<std::set<std::string>> black_list;
         uos::mongo_params MongoConnectionParams;
@@ -111,7 +114,7 @@ namespace uos_plugins{
             actions.emplace_back(fill_inline_traces(item));
         }
         if(actions.size()>0){
-            wlog(fc::json::to_string(actions));
+//            wlog(fc::json::to_string(actions));
             bool consists_inlines = false;
             for(auto item: actions){
                 if(item.get_object().contains("inline_traces") &&
@@ -121,16 +124,16 @@ namespace uos_plugins{
                 }
             }
             fc::mutable_variant_object mblock;
-            mblock["blocknum"] = att->block_num;
-            mblock["blockid"] = att->producer_block_id;
-            mblock["trxid"] = att->id;
-            mblock["irreversible"] = false;
-            mblock["actions"] = actions;
-            mblock["blocktime"] = att->block_time;
+            mblock["blocknum"]      = att->block_num;
+            mblock["blockid"]       = att->producer_block_id;
+            mblock["trxid"]         = att->id;
+            mblock["irreversible"]  = false;
+            mblock["actions"]       = actions;
+            mblock["blocktime"]     = att->block_time;
 
             try {
                 mongo->put_action_traces(fc::json::to_string(mblock));
-
+                accepted_blocks_queue->push(fc::json::to_string(mblock));
             }
             catch (mongocxx::exception &ex){
                 elog(ex.what());
@@ -138,6 +141,30 @@ namespace uos_plugins{
         }
     }
 
+    void uos_BE_impl::queue_processor() {
+        while(!stop) {
+            if(accepted_blocks_queue!= nullptr){
+                break;
+            }
+            elog("queue not initialized");
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
+        std::string item;
+        while((!stop)||(!accepted_blocks_queue->empty())) {
+            if(stop){
+                std::cout<<accepted_blocks_queue->size()<<std::endl; //todo: remove this
+            }
+            if(!accepted_blocks_queue->try_pop(item)){
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            }
+            else {
+                elog(item); //todo: remove this
+            }
+
+        }
+    }
+
+///
     uos_BE::uos_BE() {    }
     uos_BE::~uos_BE(){}
 
@@ -158,8 +185,17 @@ namespace uos_plugins{
 
 
     void uos_BE::plugin_shutdown() {
+        my->stop = true;
+        if(my->mongo_thread != nullptr){
+            if(my->mongo_thread->joinable()){
+                elog("join");
+                my->mongo_thread->join();
+            }
+        }
 
     }
+
+
     void uos_BE::plugin_startup() {
         if(startup) {
             try {
@@ -186,6 +222,10 @@ namespace uos_plugins{
             cc.applied_transaction.connect([this](const auto &att) {
                 my->applied_transaction_catcher(att);
             });
+            /// prepare second thread
+            my->stop = false;
+            my->accepted_blocks_queue = std::make_shared<thread_safe::threadsafe_queue<std::string>>();
+            my->mongo_thread = std::make_shared<std::thread>([this]{my->queue_processor();});
         }
         else{
             elog("UOS blocks exporter disabled. Error in connection to mongo DB");

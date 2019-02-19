@@ -153,7 +153,8 @@ namespace uos{
         auto test = make_document(kvp("blocknum",
                                       make_document( kvp("$gte",static_cast<int64_t>(_block_start)),
                                                      kvp("$lte",static_cast<int64_t>(_block_end)))));
-        std::cout<<bsoncxx::to_json(test.view())<<std::endl;
+
+        std::cout<<bsoncxx::to_json(test.view())<<std::endl;  /// todo: remove
 
         auto cursor = mongo_conn[connection_name][_db].find(
                 make_document(kvp("blocknum",

@@ -12,6 +12,7 @@
 #include <mongocxx/v_noabi/mongocxx/uri.hpp>
 #include <mongocxx/v_noabi/mongocxx/exception/exception.hpp>
 #include <list>
+#include <atomic>
 
 namespace uos{
 
@@ -90,22 +91,10 @@ namespace uos{
         mongo_last_state get_last_state();
         void set_last_state(const mongo_last_state & state);
 
-//        fc::mutable_variant_object  get_block(const uint32_t &_blocknum);
-//        bool    put_block(const string& __val);
-//
-//        fc::mutable_variant_object  get_balances(const uint32_t& _blocknum);
-//        bool    put_balances(const string& __val);
-//
-//        fc::mutable_variant_object  get_results(const uint32_t& _blocknum);
-//        bool    put_results(const string& __val);
-
         fc::mutable_variant_object  get_action_traces(const uint32_t &_blocknum);
         bool    put_action_traces(const string& __val);
         bool    set_irreversible_block(const uint32_t &blocknum, const string &block_id);
 
-//        std::map<uint64_t , fc::variant> get_blocks_range(const uint64_t &_block_start, const uint64_t &_block_end);
-//        std::map<uint64_t , fc::variant> get_results_range(const uint64_t &_block_start, const uint64_t &_block_end);
-//        std::map<uint64_t , fc::variant> get_balances_range(const uint64_t &_block_start, const uint64_t &_block_end);
         std::map<uint64_t , fc::variant> get_action_traces_range(const uint64_t &_block_start, const uint64_t &_block_end);
 
     };
