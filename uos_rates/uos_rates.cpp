@@ -101,6 +101,8 @@ namespace eosio {
         string calc_contract_public_key = "";
         string calc_contract_private_key = "";
 
+        int32_t ref_period = 365*24*60*60*2; //time_referrals
+
 
         double social_importance_share = 0.1;
         double transfer_importance_share = 0.1;
@@ -482,6 +484,7 @@ namespace eosio {
         dp.calculate_stake_rates();
 
         dp.calculate_importance(social_importance_share,transfer_importance_share);
+        dp.calculate_referrals();
         dp.calculate_scaled_values();
 
         //calculations of the emission
@@ -514,6 +517,8 @@ namespace eosio {
             item.prev_cumulative_emission = dp.get_acc_string_value(name, "prev_cumulative_emission");
             item.current_emission = dp.get_acc_string_value(name, "current_emission");
             item.current_cumulative_emission = dp.get_acc_string_value(name, "current_cumulative_emission");
+            item.referal_bonus = dp.get_acc_string_value(name, "referal_bonus");
+            item.referal = dp.get_acc_string_value(name, "referal");
 
             result.res_map[name] = item;
         }
@@ -756,7 +761,9 @@ namespace eosio {
                 "importance_scaled",
                 "current_emission",
                 "prev_cumulative_emission",
-                "current_cumulative_emission"
+                "current_cumulative_emission",
+                "referal_bonus",
+                "referal"
         };
         csv_result.addDatainRow(heading.begin(), heading.end());
 
@@ -776,7 +783,9 @@ namespace eosio {
                 item.second.importance_scaled,
                 item.second.current_emission,
                 item.second.prev_cumulative_emission,
-                item.second.current_cumulative_emission
+                item.second.current_cumulative_emission,
+                item.second.referal_bonus,
+                item.second.referal
             };
             csv_result.addDatainRow(vec.begin(), vec.end());
         }

@@ -44,6 +44,8 @@ namespace eosio {
         string prev_cumulative_emission = "0";
         string current_emission = "0";
         string current_cumulative_emission = "0";
+        string referal_bonus = "0";
+        string referal = "0";
     };
 
     class result_set
@@ -94,6 +96,9 @@ namespace eosio {
                 ri.current_emission = vi["current_emission"].as_string();
                 ri.current_cumulative_emission = vi["current_cumulative_emission"].as_string();
 
+                ri.referal_bonus = vi["referal_bonus"].as_string();
+                ri.referal = vi["referal"].as_string();
+
                 res_map[ri.name] = ri;
             }
         }
@@ -127,6 +132,8 @@ namespace eosio {
                 res_var["prev_cumulative_emission"] = item.second.prev_cumulative_emission;
                 res_var["current_emission"] = item.second.current_emission;
                 res_var["current_cumulative_emission"] = item.second.current_cumulative_emission;
+                res_var["referal_bonus"] = item.second.referal_bonus;
+                res_var["referal"] = item.second.referal;
 
                 res_list.push_back(res_var);
             }

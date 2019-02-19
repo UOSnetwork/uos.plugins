@@ -34,6 +34,9 @@ namespace uos {
         uint32_t transaction_window = 100*86400*2;//100 days
         uint32_t activity_window = 30*86400*2; //30 days
 
+        int64_t ref_period = 365*24*60*60*2; //time_referrals
+        double ref_share = 0.1;
+
         const double activity_monetary_value = 1000;
         const uint8_t blocks_per_second = 2;
         const double yearly_emission_percent = 1.0;
@@ -71,6 +74,7 @@ namespace uos {
         string real_resulting_emission;
 
         set<string> st_make_id_contents;//unique
+        set<string> reference_trx;//unique
         string result_hash;
 
         explicit data_processor(uint32_t calc_block){
@@ -96,6 +100,7 @@ namespace uos {
         void calculate_transfer_rates();
         void calculate_stake_rates();
         void calculate_importance(double social_importance_share,double transfer_importance_share);
+        void calculate_referrals();
 
         void calculate_scaled_values();
 
@@ -156,7 +161,26 @@ namespace uos {
 
             if(trx["acc"].as_string() == "uos.activity" && trx["action"].as_string() == "socialaction") {
 
-                common_relations = parse_ext_social_transaction(trx);
+                com_relations = parse_ext_social_transaction(trx);
+                if(common_relations.size() == 0)
+                     common_relations = com_relations;
+
+                for(const auto &item: com_relations) {
+                    if(item.first == "trust") {
+                        auto v_trust = item.second;
+                        for(auto &i:common_relations){
+                            if(i.first == "trust")
+                                i.second.insert(i.second.end(),v_trust.begin(),v_trust.end());
+                        }
+                    }
+                    if(item.first == "reference") {
+                        auto v_reference = item.second;
+                        for(auto &i:common_relations){
+                            if(i.first == "reference")
+                                i.second.insert(i.second.end(),v_reference.begin(),v_reference.end());
+                        }
+                    }
+                }
 
                 auto it = common_relations.find("trust");
                 if (it != common_relations.end()) {
@@ -257,12 +281,22 @@ namespace uos {
 
             if (action_json.find("reference") != std::string::npos ) {
 
+
                 auto json_data = fc::json::from_string(action_json);
                 auto from = json_data["data"]["account_from"].as_string();
                 auto to = json_data["data"]["account_to"].as_string();
 
-                reference_t reference(from, to, block_height);
-                reference_result.push_back(std::make_shared<reference_t>(reference));
+                if(reference_trx.insert(from + to).second == false)
+                {
+                    elog(" \n Duplicate  reference transaction: " + to + " pirate: "+ from);
+                }
+                else
+                {
+                    reference_t reference(from, to, block_height);
+                    reference_result.push_back(std::make_shared<reference_t>(reference));
+                }
+
+
             }
 
             result.insert(make_pair("trust",trust_result));
@@ -478,6 +512,38 @@ namespace uos {
         }
     }
 
+
+    void data_processor::calculate_referrals()
+    {
+
+        auto it = common_relations.find("reference");
+        if (it != common_relations.end()) {
+            auto rel_ref = it->second;
+            for(auto ref:rel_ref) {
+                accounts[ref->get_target()].set("referal", ref->get_source());
+                uint64_t height = ref->get_height();
+
+                auto fading = (height >= ref_period) ? 0 : ((double)(ref_period - height)/(double)ref_period);
+
+                double importance_refer = get_acc_double_value(ref->get_target(), "importance");
+                double referal_bonus = ref_share * importance_refer * fading;
+                double importance_referal_new = get_acc_double_value(ref->get_source(), "importance")+ referal_bonus;
+
+//                accounts[ref->get_source()].set("referal_bonus", referal_bonus);
+                accounts[ref->get_source()].set("importance", importance_referal_new);
+                ilog("REFERAL BONUS add:" + ref->get_source() + string(":") + to_string_10(referal_bonus));
+
+                double importance_referals_new = importance_refer - referal_bonus;
+
+                accounts[ref->get_target()].set("importance", importance_referals_new);
+                accounts[ref->get_target()].set("referal_bonus", referal_bonus);
+                ilog("REFERALS BONUS remove:" + ref->get_target() + string(":") + to_string_10(referal_bonus));
+
+            }
+        }
+
+    }
+
     void data_processor::calculate_scaled_values() {
         //auto acc_count = accounts.size();
         ///for acc_count use only accounts with non-zero social_rate
@@ -553,7 +619,7 @@ namespace uos {
             ss.insert(it->second);
         }
 
-        map <string, double > trust_coef;
+        map<string, double > trust_coef;
         for (map<string, set<string> >::iterator it = trust_relations_u.begin(); it != trust_relations_u.end(); ++it)
         {
             double  stake_others_balance = 0;
