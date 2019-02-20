@@ -258,49 +258,52 @@ namespace uos {
         vector <p_sing_relation_t>reference_result;
         map<string,vector<p_sing_relation_t>> result;
 
-        if (trx["action"].as_string() == "socialaction" ) {
+        try {
+            if (trx["action"].as_string() == "socialaction") {
 
-            auto block_num = stoi(trx["block_num"].as_string());
-            auto block_height = current_calc_block - block_num;
-
-
-            auto from = trx["data"]["acc"].as_string();
-            auto action_json = trx["data"]["action_json"].as_string();
+                auto block_num = stoi(trx["block_num"].as_string());
+                auto block_height = current_calc_block - block_num;
 
 
-            //TODO::check json is valid; check validate to name
-            if (action_json.find("trust") != std::string::npos ) {
-
-                auto json_data = fc::json::from_string(action_json);
-                auto from = json_data["data"]["account_from"].as_string();
-                auto to = json_data["data"]["account_to"].as_string();
-
-                trust_t trust(from, to, block_height);
-                trust_result.push_back(std::make_shared<trust_t>(trust));
-            }
-
-            if (action_json.find("reference") != std::string::npos ) {
+                auto from = trx["data"]["acc"].as_string();
+                auto action_json = trx["data"]["action_json"].as_string();
 
 
-                auto json_data = fc::json::from_string(action_json);
-                auto from = json_data["data"]["account_from"].as_string();
-                auto to = json_data["data"]["account_to"].as_string();
+                //TODO::check json is valid; check validate to name
+                if (action_json.find("trust") != std::string::npos) {
 
-                if(reference_trx.insert(from + to).second == false)
-                {
-                    elog(" \n Duplicate  reference transaction: " + to + " pirate: "+ from);
-                }
-                else
-                {
-                    reference_t reference(from, to, block_height);
-                    reference_result.push_back(std::make_shared<reference_t>(reference));
+                    auto json_data = fc::json::from_string(action_json);
+                    auto from = json_data["data"]["account_from"].as_string();
+                    auto to = json_data["data"]["account_to"].as_string();
+
+                    trust_t trust(from, to, block_height);
+                    trust_result.push_back(std::make_shared<trust_t>(trust));
                 }
 
+                if (action_json.find("reference") != std::string::npos) {
 
+
+                    auto json_data = fc::json::from_string(action_json);
+                    auto from = json_data["data"]["account_from"].as_string();
+                    auto to = json_data["data"]["account_to"].as_string();
+
+                    if (reference_trx.insert(from + to).second == false) {
+                        elog(" \n Duplicate  reference transaction: " + to + " pirate: " + from);
+                    } else {
+                        reference_t reference(from, to, block_height);
+                        reference_result.push_back(std::make_shared<reference_t>(reference));
+                    }
+
+
+                }
+
+                result.insert(make_pair("trust", trust_result));
+                result.insert(make_pair("reference", reference_result));
             }
-
-            result.insert(make_pair("trust",trust_result));
-            result.insert(make_pair("reference",reference_result));
+        }
+        catch (...){
+            elog("error when parsing extended transaction");
+            ilog(fc::json::to_string(trx));
         }
 
         return result;
