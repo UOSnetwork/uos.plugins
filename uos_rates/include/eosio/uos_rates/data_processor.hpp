@@ -523,24 +523,23 @@ namespace uos {
         if (it != common_relations.end()) {
             auto rel_ref = it->second;
             for(auto ref:rel_ref) {
-                accounts[ref->get_target()].set("referal", ref->get_source());
+                accounts[ref->get_source()].set("referal", ref->get_target());
                 uint64_t height = ref->get_height();
 
                 auto fading = (height >= ref_period) ? 0 : ((double)(ref_period - height)/(double)ref_period);
 
-                double importance_refer = get_acc_double_value(ref->get_target(), "importance");
+                double importance_refer = get_acc_double_value(ref->get_source(), "importance");
                 double referal_bonus = ref_share * importance_refer * fading;
-                double importance_referal_new = get_acc_double_value(ref->get_source(), "importance")+ referal_bonus;
+                double importance_referal_new = get_acc_double_value(ref->get_target(), "importance")+ referal_bonus;
 
-//                accounts[ref->get_source()].set("referal_bonus", referal_bonus);
-                accounts[ref->get_source()].set("importance", importance_referal_new);
-                ilog("REFERAL BONUS add:" + ref->get_source() + string(":") + to_string_10(referal_bonus));
+                accounts[ref->get_target()].set("importance", importance_referal_new);
+                ilog("REFERAL BONUS add:" + ref->get_target() + string(":") + to_string_10(referal_bonus));
 
                 double importance_referals_new = importance_refer - referal_bonus;
 
-                accounts[ref->get_target()].set("importance", importance_referals_new);
-                accounts[ref->get_target()].set("referal_bonus", referal_bonus);
-                ilog("REFERALS BONUS remove:" + ref->get_target() + string(":") + to_string_10(referal_bonus));
+                accounts[ref->get_source()].set("importance", importance_referals_new);
+                accounts[ref->get_source()].set("referal_bonus", referal_bonus);
+                ilog("REFERALS BONUS remove:" + ref->get_source() + string(":") + to_string_10(referal_bonus));
 
             }
         }
