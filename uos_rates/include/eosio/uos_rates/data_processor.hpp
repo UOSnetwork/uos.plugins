@@ -50,6 +50,8 @@ namespace uos {
         string prev_max_network_activity = "0";
 
         //intermediate
+        set<std::string> actor_ids;
+        set<std::string> content_ids;
         vector<std::shared_ptr<singularity::relation_t>> transfer_relations;
         vector<std::shared_ptr<singularity::relation_t>> social_relations;
         vector<std::shared_ptr<singularity::relation_t>> trust_relations;//new type relations
@@ -332,21 +334,29 @@ namespace uos {
 
 
             //do not use "create orgainzation as the content" events, code 4
-            if(content_type_id == "4")
+            if(content_type_id == "4") {
+                actor_ids.insert(to);
                 return result;
+            }
 
-            if(prev_cumulative_emission.find(to) != prev_cumulative_emission.end())
-            {
-                elog("makecontent to user rejected "+ from + " to " + to);
+            if(actor_ids.find(to) != actor_ids.end()) {
+                elog("makecontent to actor mismatch " + from + " to " + to);
+                return result;
+            }
+
+            if(content_ids.find(from) != content_ids.end()) {
+                elog("makecontent from content mismatch " + from + " to " + to);
                 return result;
             }
 
             if(st_make_id_contents.insert(to).second == false)
             {
-                elog(" \n Duplicate  social transaction makecontent - id_contens: " + to + " pirate: "+ from);
+                elog("duplicate makecontent content_id: " + to + " account: "+ from);
                 return result;
             }
 
+            actor_ids.insert(from);
+            content_ids.insert(to);
             ownership_t ownership(from, to, block_height);
             result.push_back(std::make_shared<ownership_t>(ownership));
         }
@@ -357,17 +367,25 @@ namespace uos {
             auto to = trx["data"]["content_id"].as_string();
             auto interaction_type_id = trx["data"]["interaction_type_id"].as_string();
 
-            if(prev_cumulative_emission.find(to) != prev_cumulative_emission.end())
-            {
-                elog("upvote to user rejected "+ from + " to " + to);
+            if(actor_ids.find(to) != actor_ids.end()) {
+                elog("usertocont to actor mismatch " + from + " to " + to);
+                return result;
+            }
+
+            if(content_ids.find(from) != content_ids.end()) {
+                elog("usertocont from content mismatch " + from + " to " + to);
                 return result;
             }
 
             if(interaction_type_id == "2") {
+                actor_ids.insert(from);
+                content_ids.insert(to);
                 upvote_t upvote(from, to, block_height);
                 result.push_back(std::make_shared<upvote_t>(upvote));
             }
             if(interaction_type_id == "4") {
+                actor_ids.insert(from);
+                content_ids.insert(to);
                 downvote_t downvote(from, to, block_height);
                 result.push_back(std::make_shared<downvote_t>(downvote));
             }
@@ -378,18 +396,24 @@ namespace uos {
             auto from = trx["data"]["organization_id"].as_string();
             auto to = trx["data"]["content_id"].as_string();
 
-            if(prev_cumulative_emission.find(to) != prev_cumulative_emission.end())
-            {
-                elog("makecontorg to user rejected "+ from + " to " + to);
+            if(actor_ids.find(to) != actor_ids.end()) {
+                elog("makecontorg to actor mismatch " + from + " to " + to);
+                return result;
+            }
+
+            if(content_ids.find(from) != content_ids.end()) {
+                elog("makecontorg from content mismatch " + from + " to " + to);
                 return result;
             }
 
             if(st_make_id_contents.insert(to).second == false)
             {
-                elog(" \n Duplicate social transaction makecontorg - id_content:" + to + " pirate: "+ from);
+                elog("duplicate makecontorg - content_id:" + to + " account: "+ from);
                 return result;
             }
 
+            actor_ids.insert(from);
+            content_ids.insert(to);
             ownership_t ownershiporg(from, to, block_height);
             result.push_back(std::make_shared<ownership_t>(ownershiporg));
         }
