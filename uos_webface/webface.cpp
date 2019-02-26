@@ -471,6 +471,16 @@ public:
     if(ec == boost::system::errc::no_such_file_or_directory)
         return send(not_found(req.target()));
     }
+    
+    void
+    do_gc()
+    {
+        // Send a TCP shutdown
+        boost::system::error_code ec;
+        socket_.shutdown(tcp::socket::shutdown_send, ec);
+
+    }
+    
     // -------------------- >
     
     
