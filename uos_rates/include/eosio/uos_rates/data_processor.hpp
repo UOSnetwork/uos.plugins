@@ -436,9 +436,14 @@ namespace uos {
             else {
                 if(prev_cumulative_emission.find(to) != prev_cumulative_emission.end())
                 {
-                    elog("makeconent rejected again " + from + " " + to);
+                    elog("makeconent to existing account mismatch" + from + " " + to);
                     return;
                 }
+                if(actor_ids.find(to) != actor_ids.end()) {
+                    elog("makecontent to actor mismatch " + from + " to " + to);
+                    return;
+                }
+
                 if(content.find(to) == content.end())
                     content[to] = fc::mutable_variant_object();
             }
