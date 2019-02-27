@@ -480,6 +480,11 @@ public:
         socket_.shutdown(tcp::socket::shutdown_send, ec);
 
     }
+    void
+        handle_request(
+        boost::beast::string_view doc_root,
+        http::request<Body, http::basic_fields<Allocator>>&& req,
+        Send&& send)
     
     // -------------------- >
     
