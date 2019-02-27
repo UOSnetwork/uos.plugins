@@ -54,6 +54,7 @@ namespace uos{
         mongocxx::instance inst;
 
         mongo_worker() = delete;
+        mongo_worker& operator=(mongo_worker&) = delete;
         mongo_worker(const char* _uri, const char* _connection_name, const char* _db_blocks, const char* _db_results, const char* _db_balances, const char* _db_action_traces)
                 :uri(_uri),
                  connection_name(_connection_name),
