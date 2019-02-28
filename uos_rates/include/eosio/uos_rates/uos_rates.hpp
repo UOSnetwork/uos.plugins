@@ -57,6 +57,8 @@ namespace eosio {
         string current_activity = "0";
         string target_emission = "0";
         string emission_limit = "0";
+        string current_emission = "0";
+        string full_prev_emission = "0";
 
         map<string, result_item> res_map;
         string result_hash;

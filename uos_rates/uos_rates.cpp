@@ -52,6 +52,8 @@ namespace eosio {
 
         void report_hash();
 
+        void report_stats(string calc_leader);
+
         string get_consensus_leader();
 
         void set_rates();
@@ -95,6 +97,7 @@ namespace eosio {
         int32_t activity_window = 86400*2*30; //30 days
         string contract_activity = "uos.activity";
         string contract_calculators = "uos.calcs";
+        string contract_calc_stats = "uos.calcstatc";
         std::set<chain::account_name> calculators;
         string calculator_public_key = "";
         string calculator_private_key = "";
@@ -176,6 +179,9 @@ namespace eosio {
             //check if we have the leader among our calculators
             if(calculators.find(leader) == calculators.end())
                 return;
+
+            //report stats
+            report_stats(leader);
 
             //set all rates
             set_rates();
@@ -540,6 +546,8 @@ namespace eosio {
         result.current_activity = dp.network_activity;
         result.target_emission = dp.target_emission;
         result.emission_limit = dp.emission_limit;
+        result.current_emission = dp.real_resulting_emission;
+        result.full_prev_emission = dp.full_prev_emission;
 
         result.result_hash = dp.result_hash;
 
@@ -815,6 +823,18 @@ namespace eosio {
             add_transaction(contract_calculators, "reporthash", data, calculator_public_key, calculator_private_key,
                             calc_name.to_string());
         }
+    }
+
+    void uos_rates_impl::report_stats(string calc_leader){
+        ilog("reportring stats for block " + to_string(result.block_num));
+        fc::mutable_variant_object data;
+        data.set("block_num", result.block_num);
+        data.set("network_activity", result.current_activity);
+        data.set("emission", result.current_emission);
+        data.set("total_emission", result.full_prev_emission);
+        ilog(fc::json::to_string(data));
+        add_transaction(contract_calc_stats, "setstats", data, calculator_public_key, calculator_private_key,
+                        calc_leader);
     }
 
     string uos_rates_impl::get_consensus_leader(){
@@ -1164,6 +1184,7 @@ namespace eosio {
                 ("calculation-window", boost::program_options::value<int32_t>()->default_value(86400*100*2), "Calculation window in blocks")
                 ("contract-activity", boost::program_options::value<std::string>()->default_value("uos.activity"), "Contract account to get the input activity")
                 ("contract-calculators", boost::program_options::value<std::string>()->default_value("uos.calcs"), "Contract account to get the calculators list")
+                ("contract-calc-stats", boost::program_options::value<std::string>()->default_value("uos.calcstatc"), "Contract account to report calculations stats")
                 ("calculator-name", boost::program_options::value<vector<string>>()->composing()->multitoken(),
                  "ID of calculator controlled by this node (e.g. calc1; may specify multiple times)")
                 ("calculator-public-key", boost::program_options::value<std::string>()->default_value(""), "")
@@ -1186,6 +1207,7 @@ namespace eosio {
         my->window = options.at("calculation-window").as<int32_t>();
         my->contract_activity = options.at("contract-activity").as<std::string>();
         my->contract_calculators = options.at("contract-calculators").as<std::string>();
+        my->contract_calc_stats = options.at("contract-calc-stats").as<std::string>();
 
         if( options.count("calculator-name") ) {
             const vector<std::string>& ops = options["calculator-name"].as<vector<std::string>>();
