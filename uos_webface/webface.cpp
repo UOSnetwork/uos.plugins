@@ -486,6 +486,14 @@ public:
         http::request<Body, http::basic_fields<Allocator>>&& req,
         Send&& send)
     
+        session(
+            tcp::socket socket,
+            std::string const& doc_root)
+            : socket_(std::move(socket))
+            , strand_(socket_.get_executor())
+            , doc_root_(doc_root)
+            , lambda_(*this)
+    
     // -------------------- >
     
     
