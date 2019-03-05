@@ -348,6 +348,7 @@ public:
         socket_.shutdown(tcp::socket::shutdown_send, ec);
 
         // At this point the connection is closed gracefully
+        
     }
 };
 
@@ -430,6 +431,10 @@ public:
                     std::move(socket_),
                     doc_root_)->run();
         }
+        
+        if( req.method() != http::verb::get &&
+        req.method() != http::verb::head)
+        return send(bad_request("Unknown HTTP-method"));
         
         
         
