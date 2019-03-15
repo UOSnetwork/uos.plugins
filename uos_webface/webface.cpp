@@ -435,9 +435,9 @@ public:
         if( req.method() != http::verb::get &&
         req.method() != http::verb::head)
         return send(bad_request("Unknown HTTP-method"));
-        
-        
-        
+
+       if(ec == boost::system::errc::no_such_file_or_directory)
+        return send(not_found(req.target()));
         
 
         // Accept another connection
