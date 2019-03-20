@@ -137,6 +137,7 @@ namespace uos{
             mongo_conn[connection_name][db_action_traces].indexes().list().end()) {
             mongo_conn[connection_name][db_action_traces].create_index(make_document(kvp("blocknum", -1)));
             mongo_conn[connection_name][db_action_traces].create_index(make_document(kvp("trxid", -1)));
+            mongo_conn[connection_name][db_action_traces].create_index(make_document(kvp("account", 1)));
         }
     }
 

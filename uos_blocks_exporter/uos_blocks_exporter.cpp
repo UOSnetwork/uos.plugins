@@ -127,6 +127,7 @@ namespace uos_plugins{
             mblock["blocknum"]      = att->block_num;
             mblock["blockid"]       = att->producer_block_id;
             mblock["trxid"]         = att->id;
+            mblock["account"]       = actions[0]["act"]["account"].as_string();
             mblock["irreversible"]  = false;
             mblock["actions"]       = actions;
             mblock["blocktime"]     = att->block_time;
@@ -158,7 +159,7 @@ namespace uos_plugins{
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));
             }
             else {
-                elog(item); //todo: remove this
+                //elog(item); //todo: remove this
             }
 
         }
