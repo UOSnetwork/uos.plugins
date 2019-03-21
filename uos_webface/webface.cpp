@@ -469,7 +469,7 @@ public:
                 res.set(http::field::content_type, "text/html");
                 res.keep_alive(req.keep_alive());
                 res.body() = "The resource '" + target.to_string() + "' was not found.";
-                res.prepare_payload();
+                //res.prepare_payload();
                 return res;
             };
             
