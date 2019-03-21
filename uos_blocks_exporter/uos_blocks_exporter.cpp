@@ -127,7 +127,7 @@ namespace uos_plugins{
             mblock["blocknum"]      = att->block_num;
             mblock["blockid"]       = att->producer_block_id;
             mblock["trxid"]         = att->id;
-            mblock["account"]       = actions[0]["act"]["account"].as_string();
+            mblock["account"]       = actions[0]["act"]["authorization"].get_array()[0]["actor"].as_string();
             mblock["irreversible"]  = false;
             mblock["actions"]       = actions;
             mblock["blocktime"]     = att->block_time;
