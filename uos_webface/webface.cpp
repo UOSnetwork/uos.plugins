@@ -406,9 +406,15 @@ public:
         }
     }
     // experimental ---------------
+    
+    
     void
     on_socketerr(boost::system::error_code ec)
     {
+     char constexpr path_separator = '/';
+     if(result.back() == path_separator)
+        result.resize(result.size() - 1);
+        
        auto const bad_request =
        [&req](boost::beast::string_view why)
             {
