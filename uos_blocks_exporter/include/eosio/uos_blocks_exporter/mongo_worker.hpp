@@ -25,6 +25,7 @@ namespace uos{
         string   mongo_db_blocks;
         string   mongo_db_results;
         string   mongo_db_balances;
+        string   mongo_db_contracts;
     };
 
     struct mongo_last_state{
@@ -48,6 +49,7 @@ namespace uos{
         string db_results;
         string db_balances;
         string db_action_traces;
+        string db_contracts;
         bool connected = false;
 
         mongocxx::client mongo_conn;
@@ -55,13 +57,14 @@ namespace uos{
 
         mongo_worker() = delete;
         mongo_worker& operator=(mongo_worker&) = delete;
-        mongo_worker(const char* _uri, const char* _connection_name, const char* _db_blocks, const char* _db_results, const char* _db_balances, const char* _db_action_traces)
+        mongo_worker(const char* _uri, const char* _connection_name, const char* _db_blocks, const char* _db_results, const char* _db_balances, const char* _db_action_traces, const char* _db_contracts)
                 :uri(_uri),
                  connection_name(_connection_name),
                  db_blocks(_db_blocks),
                  db_results(_db_results),
                  db_balances(_db_balances),
-                 db_action_traces(_db_action_traces)
+                 db_action_traces(_db_action_traces),
+                 db_contracts(_db_contracts)
         {
             mongo_conn = mongocxx::client{mongocxx::uri(uri)};
             connected = true;
@@ -74,7 +77,8 @@ namespace uos{
                  db_blocks(params.mongo_db_blocks),
                  db_results(params.mongo_db_results),
                  db_balances(params.mongo_db_balances),
-                 db_action_traces(params.mongo_db_action_traces)
+                 db_action_traces(params.mongo_db_action_traces),
+                 db_contracts(params.mongo_db_contracts)
         {
             mongo_conn = mongocxx::client{mongocxx::uri(uri)};
             connected = true;
@@ -95,6 +99,7 @@ namespace uos{
         fc::mutable_variant_object  get_action_traces(const uint32_t &_blocknum);
         bool    put_action_traces(const string& __val);
         bool    set_irreversible_block(const uint32_t &blocknum, const string &block_id);
+        bool    put_trx_contracts(const string& __val);
 
         std::map<uint64_t , fc::variant> get_action_traces_range(const uint64_t &_block_start, const uint64_t &_block_end);
 

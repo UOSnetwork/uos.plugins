@@ -129,6 +129,23 @@ namespace uos{
     bool mongo_worker::put_action_traces(const std::string &__val) {
         return put_by_uniq_blocknum_trxid(__val,db_action_traces);
     }
+    bool mongo_worker::put_trx_contracts(const std::string &__val) {
+        if(!connected)
+            connect();
+        try {
+            mongocxx::options::insert test_o;
+            test_o.bypass_document_validation(false);
+            fc::variant record = fc::json::from_string(__val);
+            mongo_conn[connection_name][db_contracts].insert_one(bsoncxx::from_json(__val),test_o);
+            return true;
+        }
+        catch (mongocxx::exception exception) {
+            elog(exception.what());
+        }
+        catch(...){}
+        return false;
+
+    }
 
     void mongo_worker::recheck_indexes() {
         if (!connected)
@@ -138,6 +155,30 @@ namespace uos{
             mongo_conn[connection_name][db_action_traces].create_index(make_document(kvp("blocknum", -1)));
             mongo_conn[connection_name][db_action_traces].create_index(make_document(kvp("trxid", -1)));
             mongo_conn[connection_name][db_action_traces].create_index(make_document(kvp("account", 1)));
+        }
+        else{
+            // todo: check if indexes have been created earlier (as hereinafter)
+        }
+
+        if(mongo_conn[connection_name][db_contracts].indexes().list().begin() ==
+           mongo_conn[connection_name][db_contracts].indexes().list().end()) {
+            mongo_conn[connection_name][db_action_traces].create_index(make_document(kvp("account",1)));
+            elog("index for contracts created");
+        }
+        else{
+            bool found = false;
+            for(auto &&doc : mongo_conn[connection_name][db_contracts].indexes().list()){
+                auto temp = fc::json::from_string(bsoncxx::to_json(doc));
+                if(temp["name"].as_string().find("account")!=std::string::npos) {
+                    found=true;
+                    elog("index for contracts found");
+                    break;
+                }
+            }
+            if(!found){
+                mongo_conn[connection_name][db_contracts].create_index(make_document(kvp("account",1)));
+                elog("index for contracts created");
+            }
         }
     }
 

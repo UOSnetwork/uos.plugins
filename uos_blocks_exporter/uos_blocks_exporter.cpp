@@ -70,12 +70,22 @@ namespace uos_plugins{
 
     }
 
-    fc::variant fill_inline_traces(eosio::chain::action_trace& action_trace){
+    fc::variant fill_inline_traces(
+            eosio::chain::action_trace& action_trace,
+            std::shared_ptr<std::set<eosio::chain::name>> contracts= nullptr,
+            std::shared_ptr<std::set<eosio::chain::name>> actors = nullptr){
+        if(contracts){
+            contracts->insert(action_trace.receipt.receiver);
+        }
+
         fc::mutable_variant_object action_mvariant(fc::variant(static_cast<eosio::chain::base_action_trace>(action_trace)));
         action_mvariant["act_data"] = app().get_plugin<eosio::chain_plugin>().get_read_only_api().abi_bin_to_json({action_trace.act.account,action_trace.act.name,action_trace.act.data}).args;
+//        if(actors){
+//            action_mvariant["act_data"].
+//        }
         fc::variants inline_traces;
         for(auto item: action_trace.inline_traces){
-            inline_traces.emplace_back(fill_inline_traces(item));
+            inline_traces.emplace_back(fill_inline_traces(item,contracts));
         }
         action_mvariant["inline_traces"]=inline_traces;
         return action_mvariant;
@@ -84,6 +94,7 @@ namespace uos_plugins{
 
     void uos_BE_impl::applied_transaction_catcher(const eosio::chain::transaction_trace_ptr &att) {
         fc::variants actions;
+        std::shared_ptr<std::set<eosio::chain::name>> constracts = std::make_shared<std::set<eosio::chain::name>>();
         try{
             if(att->producer_block_id) {
                 last_state.mongo_blockid = fc::variant(att->producer_block_id).as_string();
@@ -111,7 +122,7 @@ namespace uos_plugins{
             else{
                 wlog("whitelist is empty");
             }
-            actions.emplace_back(fill_inline_traces(item));
+            actions.emplace_back(fill_inline_traces(item,constracts));
         }
         if(actions.size()>0){
 //            wlog(fc::json::to_string(actions));
@@ -134,6 +145,16 @@ namespace uos_plugins{
 
             try {
                 mongo->put_action_traces(fc::json::to_string(mblock));
+                if(!constracts->empty()){
+                    fc::mutable_variant_object mcontr;
+                    mcontr["blocknum"] = att->block_num;
+                    mcontr["blockid"] = att->producer_block_id;
+                    mcontr["trxid"] = att->id;
+                    for(auto item : *constracts){
+                        mcontr["account"] = item.to_string();
+                        mongo->put_trx_contracts(fc::json::to_string(mcontr));
+                    }
+                }
                 accepted_blocks_queue->push(fc::json::to_string(mblock));
             }
             catch (mongocxx::exception &ex){
@@ -243,6 +264,7 @@ namespace uos_plugins{
             my->MongoConnectionParams.mongo_uri =               options.at("uos-mongo-uri").as<std::string>();
             my->MongoConnectionParams.mongo_connection_name =   options.at("uos-mongo-database").as<std::string>();
             my->MongoConnectionParams.mongo_db_action_traces =  "action_traces";
+            my->MongoConnectionParams.mongo_db_contracts     =  "contracts";
 
             my->mongo_init();
 
