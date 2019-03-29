@@ -438,6 +438,10 @@ public:
                     doc_root_)->run();
         }
         
+      boost::beast::error_code ec;
+      http::file_body::value_type body;
+      body.open(path.c_str(), boost::beast::file_mode::scan, ec);
+        
         if( req.method() != http::verb::get &&
         req.method() != http::verb::head)
         return send(bad_request("Unknown HTTP-method"));
