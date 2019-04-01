@@ -2,15 +2,15 @@
 #pragma once
 #include <string>
 #include <fc/variant.hpp>
-#include <mongocxx/v_noabi/mongocxx/client.hpp>
-#include <mongocxx/v_noabi/mongocxx/collection.hpp>
+#include <mongocxx/client.hpp>
+#include <mongocxx/collection.hpp>
 
-#include <mongocxx/v_noabi/mongocxx/options/update.hpp>
+#include <mongocxx/options/update.hpp>
 //#include <mongocxx/v_noabi/mongocxx/options/replace.hpp>
-#include <mongocxx/v_noabi/mongocxx/pool.hpp>
-#include <mongocxx/v_noabi/mongocxx/instance.hpp>
-#include <mongocxx/v_noabi/mongocxx/uri.hpp>
-#include <mongocxx/v_noabi/mongocxx/exception/exception.hpp>
+#include <mongocxx/pool.hpp>
+#include <mongocxx/instance.hpp>
+#include <mongocxx/uri.hpp>
+#include <mongocxx/exception/exception.hpp>
 #include <list>
 #include <atomic>
 
