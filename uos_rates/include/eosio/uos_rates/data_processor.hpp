@@ -65,7 +65,9 @@ namespace uos {
 
         //calculation details
         singularity::activity_index_detalization_t activity_details;
+        singularity::activity_index_detalization_t priority_details;
         singularity::activity_index_detalization_t content_details;
+        singularity::intermediate_results_t intermediate_results;
 
         string network_activity;
         string max_network_activity;
@@ -99,6 +101,7 @@ namespace uos {
 
         void calculate_validity_accounts();
         void calculate_social_rates();
+        void set_intermediate_results();
         void calculate_transfer_rates();
         void calculate_stake_rates();
         void calculate_importance(double social_importance_share,double transfer_importance_share);
@@ -454,20 +457,29 @@ namespace uos {
         singularity::parameters_t params;
         params.include_detailed_data = true;
         params.use_diagonal_elements = true;
+        params.stack_contribution = 0;
+        params.weight_contribution = 0.8;
 
-        map <string, double_type> validity;
-        for(auto item: accounts)
-        {
-            double coeff = get_acc_double_value(item.first, "validity");
-            validity.insert(std::pair<string, double_type>(item.first, (double_type)coeff));
+        //map <string, double_type> validity;
+        //for(auto item: accounts)
+        //{
+//            double coeff = get_acc_double_value(item.first, "validity");
+//            validity.insert(std::pair<string, double_type>(item.first, (double_type)coeff));
+        //}
+        map <string, double_type> stake;
+        for(auto item: accounts){
+            double staked_balance = get_acc_double_value(item.first, "staked_balance");
+            stake.insert(std::pair<string, double_type>(item.first, (double_type)staked_balance));
         }
 
         auto social_calculator =
                 singularity::rank_calculator_factory::create_calculator_for_social_network(params);
 
-        social_calculator->set_weights(validity);
+        //social_calculator->set_weights(validity);
+        social_calculator->add_stack_vector(stake);
 
         social_calculator->add_block(social_relations);
+        social_calculator->add_block(common_relations["trust"]);
         auto social_rates = social_calculator->calculate();
 
         for(auto item : *social_rates[singularity::ACCOUNT]){
@@ -482,8 +494,38 @@ namespace uos {
             content[item.first].set("social_rate", to_string_10(item.second));
         }
 
-        activity_details = social_calculator->get_detalization();
-        content_details = social_calculator->get_content_detalization();
+        activity_details = social_calculator->get_account_rank_detalization();
+        priority_details = social_calculator->get_account_priority_detalization();
+        content_details = social_calculator->get_content_rank_detalization();
+
+        intermediate_results = social_calculator->get_last_intermediate_results();
+    }
+
+    void data_processor::set_intermediate_results(){
+        for(auto item : accounts){
+            auto name = item.first;
+            ilog(name);
+            
+            auto di = intermediate_results.default_initial.find(name);
+            if(di != intermediate_results.default_initial.end()){
+                accounts[name].set("default_initial", to_string_10(di->second));
+            }
+
+            auto tr = intermediate_results.trust.find(name);
+            if(tr != intermediate_results.trust.end()){
+                accounts[name].set("trust", to_string_10(tr->second));
+            }
+
+            auto pr = intermediate_results.priority.find(name);
+            if(pr != intermediate_results.priority.end()){
+                accounts[name].set("priority", to_string_10(pr->second));
+            }
+
+            auto st = intermediate_results.stack.find(name);
+            if(st != intermediate_results.stack.end()){
+                accounts[name].set("stack", to_string_10(st->second));
+            }
+        }
     }
 
     void data_processor::calculate_transfer_rates() {
@@ -494,6 +536,10 @@ namespace uos {
 
         transfer_calculator->add_block(transfer_relations);
         auto transfer_rates = transfer_calculator->calculate();
+
+        if(transfer_rates.size() == 0) {
+            return;
+        }
 
         for(auto item : *transfer_rates[singularity::ACCOUNT]){
             if(accounts.find(item.first) == accounts.end())

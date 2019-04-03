@@ -95,9 +95,9 @@ namespace eosio {
 
         int32_t window = 86400*2*100;//100 days
         int32_t activity_window = 86400*2*30; //30 days
-        string contract_activity = "uos.activity";
-        string contract_calculators = "uos.calcs";
-        string contract_calc_stats = "uos.calcstatc";
+        string contract_activity = "";
+        string contract_calculators = "";
+        string contract_calc_stats = "";
         std::set<chain::account_name> calculators;
         string calculator_public_key = "";
         string calculator_private_key = "";
@@ -526,6 +526,11 @@ namespace eosio {
             item.referal_bonus = dp.get_acc_string_value(name, "referal_bonus");
             item.referal = dp.get_acc_string_value(name, "referal");
 
+            item.default_initial = dp.get_acc_string_value(name, "default_initial");
+            item.trust = dp.get_acc_string_value(name, "trust");
+            item.priority = dp.get_acc_string_value(name, "priority");
+            item.stack = dp.get_acc_string_value(name, "stack");
+
             result.res_map[name] = item;
         }
 
@@ -653,16 +658,16 @@ namespace eosio {
                 }
             }
 
-            if(dp.activity_details.stack_contribution.find(name) !=
-               dp.activity_details.stack_contribution.end()){
-                line = "stake: ";
-                for(auto item : dp.activity_details.stack_contribution[name]){
-                    line += item.first +
-                            ":" + dp.to_string_10(item.second.koefficient) +
-                            "*" + dp.to_string_10(item.second.rate) + " ";
-                }
-                det_file << line + "\n";
-            }
+//            if(dp.activity_details.stack_contribution.find(name) !=
+//               dp.activity_details.stack_contribution.end()){
+//                line = "stake: ";
+//                for(auto item : dp.activity_details.stack_contribution[name]){
+//                    line += item.first +
+//                            ":" + dp.to_string_10(item.second.koefficient) +
+//                            "*" + dp.to_string_10(item.second.rate) + " ";
+//                }
+//                det_file << line + "\n";
+//            }
 
             det_file << "\n";
         }
@@ -771,7 +776,11 @@ namespace eosio {
                 "prev_cumulative_emission",
                 "current_cumulative_emission",
                 "referal_bonus",
-                "referal"
+                "referal",
+                "default_initial",
+                "trust",
+                "priority",
+                "stack"
         };
         csv_result.addDatainRow(heading.begin(), heading.end());
 
@@ -793,7 +802,11 @@ namespace eosio {
                 item.second.prev_cumulative_emission,
                 item.second.current_cumulative_emission,
                 item.second.referal_bonus,
-                item.second.referal
+                item.second.referal,
+                item.second.default_initial,
+                item.second.trust,
+                item.second.priority,
+                item.second.stack
             };
             csv_result.addDatainRow(vec.begin(), vec.end());
         }
@@ -1184,7 +1197,7 @@ namespace eosio {
                 ("calculation-window", boost::program_options::value<int32_t>()->default_value(86400*100*2), "Calculation window in blocks")
                 ("contract-activity", boost::program_options::value<std::string>()->default_value("uos.activity"), "Contract account to get the input activity")
                 ("contract-calculators", boost::program_options::value<std::string>()->default_value("uos.calcs"), "Contract account to get the calculators list")
-                ("contract-calc-stats", boost::program_options::value<std::string>()->default_value("uos.calcstatc"), "Contract account to report calculations stats")
+                ("contract-calc-stats", boost::program_options::value<std::string>()->default_value("uos.calcstat"), "Contract account to report calculations stats")
                 ("calculator-name", boost::program_options::value<vector<string>>()->composing()->multitoken(),
                  "ID of calculator controlled by this node (e.g. calc1; may specify multiple times)")
                 ("calculator-public-key", boost::program_options::value<std::string>()->default_value(""), "")

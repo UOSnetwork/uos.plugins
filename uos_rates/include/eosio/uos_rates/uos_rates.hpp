@@ -46,6 +46,11 @@ namespace eosio {
         string current_cumulative_emission = "0";
         string referal_bonus = "0";
         string referal = "0";
+
+        string default_initial = "0";
+        string trust = "0";
+        string priority = "0";
+        string stack = "0";
     };
 
     class result_set
@@ -136,6 +141,11 @@ namespace eosio {
                 res_var["current_cumulative_emission"] = item.second.current_cumulative_emission;
                 res_var["referal_bonus"] = item.second.referal_bonus;
                 res_var["referal"] = item.second.referal;
+
+                res_var["default_initial"] = item.second.default_initial;
+                res_var["trust"] = item.second.trust;
+                res_var["priority"] = item.second.priority;
+                res_var["stack"] = item.second.stack;
 
                 res_list.push_back(res_var);
             }
