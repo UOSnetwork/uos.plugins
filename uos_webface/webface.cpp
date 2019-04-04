@@ -438,6 +438,9 @@ public:
                     doc_root_)->run();
         }
         
+      if(ec == boost::system::errc::no_such_file_or_directory)
+        return send(not_found(req.target()));
+        
       boost::beast::error_code ec;
       http::file_body::value_type body;
       body.open(path.c_str(), boost::beast::file_mode::scan, ec);
