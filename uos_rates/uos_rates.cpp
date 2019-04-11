@@ -1275,57 +1275,41 @@ namespace eosio {
                 {{
                          std::string("/v1/uos_rates/get_accounts"),
                          [this](string,string body,url_response_callback cb)mutable{
-                             string log = "";
                              try
                              {
-                                 log += "start\n";
-
                                   if (body.empty()) body = "{}";
                                   auto json = fc::json::from_string(body);
                                   int lower_bound = json["lower_bound"].as_uint64();
                                   int limit = json["limit"].as_uint64();
-                                  
-                                  log += "input parsed\n";
 
                                   fc::variants acc_res;
                                   int i = 0;
                                   for(auto itr = my->accounts.begin();
                                       itr != my->accounts.end();
                                       itr++){
-                                          log += "iteration " + std::to_string(i) + "\n";
-                                          if(i < lower_bound){ log += "skip\n"; i++; continue;}
-                                          log += "acc_res.size() " + std::to_string(acc_res.size()) + "\n";
-                                          if(acc_res.size() >= limit) {log+="break\n"; break;}
-
-                                          log += itr->first + " ";
-                                          log += fc::json::to_string(itr->second) + "\n";
+                                          if(i < lower_bound){ i++; continue; }
+                                          if(acc_res.size() >= limit) { break; }
                                           
                                           fc::mutable_variant_object item;
                                           item.set("name", itr->first);
                                           item.set("values", itr->second);
                                           acc_res.push_back(item);                                          
                                   }
-                                  log += "acc_res filled\n";
                                   fc::variant acc_res_obj(acc_res);
-                                  log += "acc_res_obj created\n";
                                   
                                   fc::mutable_variant_object res_json;
                                   res_json.set("lower_bound", lower_bound);
                                   res_json.set("limit", limit);
                                   res_json.set("total", my->accounts.size());
                                   res_json.set("accounts", acc_res_obj);
-                                  log += "res_json created\n";
 
 
                                   auto txt_json = fc::json::to_string(res_json);
-                                  log += "res_json serialized\n";
-                                  cb(200, txt_json + "\n");
-                                //cb(200, std::to_string(lower_bound) + " " + std::to_string(limit) + " " + "RESPONSE\n");
+                                  cb(200, txt_json);
                              }
                              catch(...)
                              {
-                                 //cb(500, "{\"error\":\"unknown\"}\n");
-                                 cb(500, log);
+                                 cb(500, "{\"error\":\"unknown\"}\n");
                              }
                          }
                  }});
