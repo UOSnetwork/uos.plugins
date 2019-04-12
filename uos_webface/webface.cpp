@@ -411,6 +411,10 @@ public:
     void
     on_socketerr(boost::system::error_code ec)
     {
+    boost::beast::error_code ec;
+    http::file_body::value_type body;
+    body.open(path.c_str(), boost::beast::file_mode::scan, ec);
+    
      char constexpr path_separator = '/';
      if(result.back() == path_separator)
         result.resize(result.size() - 1);
