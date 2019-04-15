@@ -1322,8 +1322,11 @@ namespace eosio {
                                   res_json.set("accounts", acc_res_obj);
 
 
-                                  auto txt_json = fc::json::to_pretty_string(res_json);
-                                  cb(200, txt_json);
+                                  if (json.get_object().find("pretty") != json.get_object().end() && json["pretty"].as_bool()){
+                                      cb(200, fc::json::to_pretty_string(res_json));
+                                  } else {
+                                      cb(200, fc::json::to_string(res_json));
+                                  }
                              }
                              catch(...)
                              {
@@ -1365,8 +1368,11 @@ namespace eosio {
                                   res_json.set("content", cont_res_obj);
 
 
-                                  auto txt_json = fc::json::to_pretty_string(res_json);
-                                  cb(200, txt_json);
+                                  if (json.get_object().find("pretty") != json.get_object().end() && json["pretty"].as_bool()){
+                                      cb(200, fc::json::to_pretty_string(res_json));
+                                  } else {
+                                      cb(200, fc::json::to_string(res_json));
+                                  }
                              }
                              catch(...)
                              {
