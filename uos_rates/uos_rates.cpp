@@ -565,12 +565,30 @@ namespace eosio {
         //update current results
         accounts.clear();
         for(auto item : dp.accounts) {
-            accounts[item.first] = item.second;
+            auto name = item.first;
+            fc::mutable_variant_object storage_item;
+            storage_item.set("soc_rate",dp.get_acc_string_value(name, "social_rate"));
+            storage_item.set("soc_rate_scaled",dp.get_acc_string_value(name, "scaled_social_rate"));
+            storage_item.set("trans_rate",dp.get_acc_string_value(name, "transfer_rate"));
+            storage_item.set("trans_rate_scaled",dp.get_acc_string_value(name, "scaled_transfer_rate"));
+            storage_item.set("staked_balance",dp.get_acc_string_value(name, "staked_balance"));
+            storage_item.set("stake_rate",dp.get_acc_string_value(name, "stake_rate"));
+            storage_item.set("stake_rate_scaled",dp.get_acc_string_value(name, "scaled_stake_rate"));
+            storage_item.set("importance",dp.get_acc_string_value(name, "importance"));
+            storage_item.set("importance_scaled",dp.get_acc_string_value(name, "scaled_importance"));
+            storage_item.set("prev_cumulative_emission",dp.get_acc_string_value(name, "prev_cumulative_emission"));
+            storage_item.set("current_emission",dp.get_acc_string_value(name, "current_emission"));
+            storage_item.set("current_cumulative_emission",dp.get_acc_string_value(name, "current_cumulative_emission"));
+            accounts[name] = storage_item;
         }
 
         content.clear();
         for(auto item : dp.content) {
-            content[item.first] = item.second;
+            auto name = item.first;
+            fc::mutable_variant_object storage_item;
+            storage_item.set("soc_rate",dp.get_cont_string_value(name, "social_rate"));
+            storage_item.set("soc_rate_scaled",dp.get_cont_string_value(name, "scaled_social_rate"));
+            content[name] = storage_item;
         }
     }
 
@@ -1275,57 +1293,90 @@ namespace eosio {
                 {{
                          std::string("/v1/uos_rates/get_accounts"),
                          [this](string,string body,url_response_callback cb)mutable{
-                             string log = "";
                              try
                              {
-                                 log += "start\n";
-
                                   if (body.empty()) body = "{}";
                                   auto json = fc::json::from_string(body);
                                   int lower_bound = json["lower_bound"].as_uint64();
                                   int limit = json["limit"].as_uint64();
-                                  
-                                  log += "input parsed\n";
 
                                   fc::variants acc_res;
                                   int i = 0;
                                   for(auto itr = my->accounts.begin();
                                       itr != my->accounts.end();
                                       itr++){
-                                          log += "iteration " + std::to_string(i) + "\n";
-                                          if(i < lower_bound){ log += "skip\n"; i++; continue;}
-                                          log += "acc_res.size() " + std::to_string(acc_res.size()) + "\n";
-                                          if(acc_res.size() >= limit) {log+="break\n"; break;}
-
-                                          log += itr->first + " ";
-                                          log += fc::json::to_string(itr->second) + "\n";
+                                          if(i < lower_bound){ i++; continue; }
+                                          if(acc_res.size() >= limit) { break; }
                                           
                                           fc::mutable_variant_object item;
                                           item.set("name", itr->first);
                                           item.set("values", itr->second);
                                           acc_res.push_back(item);                                          
                                   }
-                                  log += "acc_res filled\n";
                                   fc::variant acc_res_obj(acc_res);
-                                  log += "acc_res_obj created\n";
                                   
                                   fc::mutable_variant_object res_json;
                                   res_json.set("lower_bound", lower_bound);
                                   res_json.set("limit", limit);
                                   res_json.set("total", my->accounts.size());
                                   res_json.set("accounts", acc_res_obj);
-                                  log += "res_json created\n";
 
 
-                                  auto txt_json = fc::json::to_string(res_json);
-                                  log += "res_json serialized\n";
-                                  cb(200, txt_json + "\n");
-                                //cb(200, std::to_string(lower_bound) + " " + std::to_string(limit) + " " + "RESPONSE\n");
+                                  if (json.get_object().find("pretty") != json.get_object().end() && json["pretty"].as_bool()){
+                                      cb(200, fc::json::to_pretty_string(res_json));
+                                  } else {
+                                      cb(200, fc::json::to_string(res_json));
+                                  }
                              }
                              catch(...)
                              {
-                                 //cb(500, "{\"error\":\"unknown\"}\n");
-                                 cb(500, log);
+                                 cb(500, "{\"error\":\"unknown\"}\n");
+                             }
+                         }
+                 }});
+        
+        app().get_plugin<http_plugin>().add_api(
+                {{
+                         std::string("/v1/uos_rates/get_content"),
+                         [this](string,string body,url_response_callback cb)mutable{
+                             try
+                             {
+                                  if (body.empty()) body = "{}";
+                                  auto json = fc::json::from_string(body);
+                                  int lower_bound = json["lower_bound"].as_uint64();
+                                  int limit = json["limit"].as_uint64();
+
+                                  fc::variants cont_res;
+                                  int i = 0;
+                                  for(auto itr = my->content.begin();
+                                      itr != my->content.end();
+                                      itr++){
+                                          if(i < lower_bound){ i++; continue; }
+                                          if(cont_res.size() >= limit) { break; }
+                                          
+                                          fc::mutable_variant_object item;
+                                          item.set("name", itr->first);
+                                          item.set("values", itr->second);
+                                          cont_res.push_back(item);                                          
+                                  }
+                                  fc::variant cont_res_obj(cont_res);
+                                  
+                                  fc::mutable_variant_object res_json;
+                                  res_json.set("lower_bound", lower_bound);
+                                  res_json.set("limit", limit);
+                                  res_json.set("total", my->content.size());
+                                  res_json.set("content", cont_res_obj);
+
+
+                                  if (json.get_object().find("pretty") != json.get_object().end() && json["pretty"].as_bool()){
+                                      cb(200, fc::json::to_pretty_string(res_json));
+                                  } else {
+                                      cb(200, fc::json::to_string(res_json));
+                                  }
+                             }
+                             catch(...)
+                             {
+                                 cb(500, "{\"error\":\"unknown\"}\n");
                              }
                          }
                  }});
