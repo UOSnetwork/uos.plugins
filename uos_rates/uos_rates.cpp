@@ -568,18 +568,18 @@ namespace eosio {
             auto name = item.first;
             fc::mutable_variant_object storage_item;
             storage_item.set("staked_balance",dp.get_acc_string_value(name, "staked_balance"));
-            storage_item.set("validity",dp.get_acc_string_value(name, "validity"));
-            storage_item.set("importance",dp.get_acc_string_value(name, "importance"));
-            storage_item.set("scaled_importance",dp.get_acc_string_value(name, "scaled_importance"));
-            storage_item.set("stake_rate",dp.get_acc_string_value(name, "stake_rate"));
-            storage_item.set("scaled_stake_rate",dp.get_acc_string_value(name, "scaled_stake_rate"));
-            storage_item.set("social_rate",dp.get_acc_string_value(name, "social_rate"));
-            storage_item.set("scaled_social_rate",dp.get_acc_string_value(name, "scaled_social_rate"));
-            storage_item.set("transfer_rate",dp.get_acc_string_value(name, "transfer_rate"));
-            storage_item.set("scaled_transfer_rate",dp.get_acc_string_value(name, "scaled_transfer_rate"));
-            storage_item.set("previous_cumulative_emission",dp.get_acc_string_value(name, "prev_cumulative_emission"));
-            storage_item.set("current_emission",dp.get_acc_string_value(name, "current_emission"));
-            storage_item.set("current_cumulative_emission",dp.get_acc_string_value(name, "current_cumulative_emission"));
+            storage_item.set("validity",dp.get_acc_string_10_value(name, "validity"));
+            storage_item.set("importance",dp.get_acc_string_10_value(name, "importance"));
+            storage_item.set("scaled_importance",dp.get_acc_string_10_value(name, "scaled_importance"));
+            storage_item.set("stake_rate",dp.get_acc_string_10_value(name, "stake_rate"));
+            storage_item.set("scaled_stake_rate",dp.get_acc_string_10_value(name, "scaled_stake_rate"));
+            storage_item.set("social_rate",dp.get_acc_string_10_value(name, "social_rate"));
+            storage_item.set("scaled_social_rate",dp.get_acc_string_10_value(name, "scaled_social_rate"));
+            storage_item.set("transfer_rate",dp.get_acc_string_10_value(name, "transfer_rate"));
+            storage_item.set("scaled_transfer_rate",dp.get_acc_string_10_value(name, "scaled_transfer_rate"));
+            storage_item.set("previous_cumulative_emission",dp.get_acc_string_4_value(name, "prev_cumulative_emission"));
+            storage_item.set("current_emission",dp.get_acc_string_4_value(name, "current_emission"));
+            storage_item.set("current_cumulative_emission",dp.get_acc_string_4_value(name, "current_cumulative_emission"));
             accounts[name] = storage_item;
         }
 
@@ -587,8 +587,8 @@ namespace eosio {
         for(auto item : dp.content) {
             auto name = item.first;
             fc::mutable_variant_object storage_item;
-            storage_item.set("social_rate",dp.get_cont_string_value(name, "social_rate"));
-            storage_item.set("scaled_social_rate",dp.get_cont_string_value(name, "scaled_social_rate"));
+            storage_item.set("social_rate",dp.get_cont_string_10_value(name, "social_rate"));
+            storage_item.set("scaled_social_rate",dp.get_cont_string_10_value(name, "scaled_social_rate"));
             content[name] = storage_item;
         }
     }

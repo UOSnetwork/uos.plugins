@@ -121,9 +121,12 @@ namespace uos {
         static string to_string_10(singularity::double_type value);
 
         string get_acc_string_value(string acc_name, string value_name);
+        string get_acc_string_4_value(string acc_name, string value_name);
+        string get_acc_string_10_value(string acc_name, string value_name);
         double get_acc_double_value(string acc_name, string value_name);
         long get_acc_long_value(string acc_name, string value_name);
         string get_cont_string_value(string cont_name, string value_name);
+        string get_cont_string_10_value(string cont_name, string value_name);
         double get_cont_double_value(string cont_name, string value_name);
     };
 
@@ -817,6 +820,16 @@ namespace uos {
         return str_value;
     }
 
+    string data_processor::get_acc_string_4_value(std::string acc_name, std::string value_name) {
+        auto double_value = get_acc_double_value(acc_name, value_name);
+        return to_string_4(double_value);
+    }
+
+    string data_processor::get_acc_string_10_value(std::string acc_name, std::string value_name) {
+        auto double_value = get_acc_double_value(acc_name, value_name);
+        return to_string_10(double_value);
+    }
+
     double data_processor::get_acc_double_value(std::string acc_name, std::string value_name) {
         auto str_value = get_acc_string_value(acc_name, value_name);
         return stod(str_value);
@@ -836,6 +849,11 @@ namespace uos {
 
         auto str_value = content[cont_name][value_name].as_string();
         return str_value;
+    }
+
+    string data_processor::get_cont_string_10_value(std::string cont_name, std::string value_name) {
+        auto double_value = get_cont_double_value(cont_name, value_name);
+        return to_string_10(double_value);
     }
 
     double data_processor::get_cont_double_value(std::string cont_name, std::string value_name) {
