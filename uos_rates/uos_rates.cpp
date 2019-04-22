@@ -481,6 +481,7 @@ namespace eosio {
         dp.prev_cumulative_emission = prev_emission;
 
         //interactions format conversion
+        dp.prepare_actor_ids();
         dp.convert_transactions_to_relations();
 
         //calculations of the rates and importance
