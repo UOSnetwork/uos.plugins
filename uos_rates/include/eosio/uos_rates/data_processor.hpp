@@ -85,6 +85,8 @@ namespace uos {
             current_calc_block = calc_block;
         }
 
+        void prepare_actor_ids();
+
         void convert_transactions_to_relations();
         vector<std::shared_ptr<singularity::relation_t>> parse_token_transaction(fc::variant trx);
         vector<std::shared_ptr<singularity::relation_t>> parse_social_transaction(fc::variant trx);
@@ -129,6 +131,12 @@ namespace uos {
         string get_cont_string_10_value(string cont_name, string value_name);
         double get_cont_double_value(string cont_name, string value_name);
     };
+
+    void data_processor::prepare_actor_ids() {
+        for(auto item : balance_snapshot) {
+            actor_ids.insert(item["name"]);
+        }
+    }
 
     void data_processor::convert_transactions_to_relations() {
 
