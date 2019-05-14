@@ -472,7 +472,11 @@ namespace eosio {
         else {
             snapshot_file = "snapshot_" + to_string(current_calc_block_num) + ".csv";
         }
-//        string snapshot_file = "snapshot_15966000.csv";
+        //check if snapshot exists
+        if(!bfs::exists(dump_dir.string() + "/" + snapshot_file)){
+            elog("balance snapshot file not found " + dump_dir.string() + "/" + snapshot_file);
+            throw "file not found " + dump_dir.string() + "/" + snapshot_file;
+        }
         auto snapshot_map = read_csv_map(dump_dir.string() + "/" + snapshot_file);
         dp.balance_snapshot = snapshot_map;
 
