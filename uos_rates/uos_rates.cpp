@@ -150,8 +150,7 @@ namespace eosio {
             return;
 
         //determine current calculating block number
-        auto irr_block_id = bsp->block->id();
-        auto irr_block_num = bsp->block->num_from_id(irr_block_id);
+        auto irr_block_num = cc.last_irreversible_block_num();
         auto current_calc_block_num = irr_block_num - (irr_block_num % period);
         ilog(" irreversible block " + to_string(irr_block_num) +
              " last_calc_block " + to_string(last_calc_block) +
