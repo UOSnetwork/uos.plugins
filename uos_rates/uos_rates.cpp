@@ -150,8 +150,7 @@ namespace eosio {
             return;
 
         //determine current calculating block number
-        auto irr_block_id = bsp->block->id();
-        auto irr_block_num = bsp->block->num_from_id(irr_block_id);
+        auto irr_block_num = cc.last_irreversible_block_num();
         auto current_calc_block_num = irr_block_num - (irr_block_num % period);
         ilog(" irreversible block " + to_string(irr_block_num) +
              " last_calc_block " + to_string(last_calc_block) +
@@ -472,7 +471,11 @@ namespace eosio {
         else {
             snapshot_file = "snapshot_" + to_string(current_calc_block_num) + ".csv";
         }
-//        string snapshot_file = "snapshot_15966000.csv";
+        //check if snapshot exists
+        if(!bfs::exists(dump_dir.string() + "/" + snapshot_file)){
+            elog("balance snapshot file not found " + dump_dir.string() + "/" + snapshot_file);
+            throw "file not found " + dump_dir.string() + "/" + snapshot_file;
+        }
         auto snapshot_map = read_csv_map(dump_dir.string() + "/" + snapshot_file);
         dp.balance_snapshot = snapshot_map;
 
