@@ -1190,7 +1190,7 @@ namespace eosio {
         //signed_trx.actions.emplace_back(act);
         signed_trx.actions.push_back(act);
 
-        signed_trx.expiration = cc.head_block_time() + fc::seconds(5);
+        signed_trx.expiration = cc.head_block_time() + fc::seconds(50);
         signed_trx.set_reference_block(cc.head_block_id());
         signed_trx.max_net_usage_words = 5000;
         signed_trx.sign(creator_priv_key, cc.get_chain_id());
