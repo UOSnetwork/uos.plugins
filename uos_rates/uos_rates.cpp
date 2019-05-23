@@ -131,6 +131,7 @@ namespace eosio {
 
         std::map<string, fc::mutable_variant_object> accounts;
         std::map<string, fc::mutable_variant_object> content;
+        fc::mutable_variant_object stats;
 
         transaction_queue trx_queue;
     };
@@ -595,6 +596,16 @@ namespace eosio {
             storage_item.set("scaled_social_rate",dp.get_cont_string_10_value(name, "scaled_social_rate"));
             content[name] = storage_item;
         }
+
+        stats.set("calculation_block",current_calc_block_num);
+        stats.set("network_activity",dp.network_activity);
+        stats.set("max_network_activity",dp.max_network_activity);
+        stats.set("full_prev_emission",dp.full_prev_emission);
+        stats.set("target_emission",dp.target_emission);
+        stats.set("emission_limit",dp.emission_limit);
+        stats.set("resulting_emission",dp.resulting_emission);
+        stats.set("real_resulting_emission",dp.real_resulting_emission);
+
     }
 
     void uos_rates_impl::save_detalization(uos::data_processor dp) {
@@ -1385,6 +1396,20 @@ namespace eosio {
                              }
                          }
                  }});
+        app().get_plugin<http_plugin>().add_api(
+                {{
+                         std::string("/v1/uos_rates/get_stats"),
+                         [this](string,string body,url_response_callback cb)mutable{
+                             try
+                             {
+                                  cb(200, fc::json::to_pretty_string(my->stats));
+                             }
+                             catch(...)
+                             {
+                                 cb(500, "{\"error\":\"unknown\"}\n");
+                             }
+                         }
+                 }});                 
     }
 
     void uos_rates::plugin_shutdown() {
