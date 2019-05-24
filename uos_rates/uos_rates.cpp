@@ -598,6 +598,7 @@ namespace eosio {
         }
 
         stats.set("calculation_block",current_calc_block_num);
+        stats.set("result_hash",dp.result_hash);
         stats.set("network_activity",dp.network_activity);
         stats.set("max_network_activity",dp.max_network_activity);
         stats.set("full_prev_emission",dp.full_prev_emission);
