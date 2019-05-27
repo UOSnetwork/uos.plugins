@@ -679,20 +679,34 @@ namespace eosio {
             if(dp.activity_details.activity_index_contribution.find(name) !=
                dp.activity_details.activity_index_contribution.end()) {
                 //sort upvoters by impact
+                //and sum of all impacts
+                double impact_sum = 0;
                 multimap<double, string> upvoters_impact;
                 for(auto item : dp.activity_details.activity_index_contribution[name]){
-                    upvoters_impact.insert({
-                                                   stod(dp.to_string_10(item.second.koefficient * item.second.rate)),
-                                                   item.first
-                    });
+                    double impact_value = stod(dp.to_string_10(item.second.koefficient * item.second.rate));
+                    impact_sum += impact_value;
+                    upvoters_impact.insert({ impact_value, item.first });
                 }
+                line = "impact_sum:" + dp.to_string_10(impact_sum);
+                det_file << line + "\n";
+                
+                double base_plus_impact = (double)(dp.activity_details.base_index[name]) + impact_sum;
+                line = "base_plus_impact:" + dp.to_string_10(base_plus_impact);
+                det_file << line + "\n";
+
+                double ratio = base_plus_impact / dp.get_acc_double_value(name, "social_rate");
+                line = "ratio:" + dp.to_string_10(ratio);
+                det_file << line + "\n";
+                
                 for(auto item = upvoters_impact.rbegin(); item != upvoters_impact.rend(); ++item){
                     auto impact = item->first;
                     auto upname = item->second;
                     auto dets = dp.activity_details.activity_index_contribution[name][upname];
-                    line = dp.to_string_10(impact) +
-                           ": " + dp.to_string_10(dets.koefficient) +
-                           "*" + dp.to_string_10(dets.rate) + " " +
+                    line = "impact:" dp.to_string_10(impact) + " " +
+                           "koeff:" + dp.to_string_10(dets.koefficient) +
+                           "rate:" + dp.to_string_10(dets.rate) + " " +
+                           "real_rate:" + dp.get_acc_string_value(upname, "social_rate") + " " +
+                           "ratio:" + dp.to_string_10(dets.rate/dp.get_acc_double_value(upname, "social_rate")) + " " +
                            "agent:" + upname + " ";
                     if(rel_index.find(upname) != rel_index.end()
                        && rel_index[upname].find(name) != rel_index[upname].end()){
