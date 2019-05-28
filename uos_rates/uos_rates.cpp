@@ -702,7 +702,7 @@ namespace eosio {
                     auto impact = item->first;
                     auto upname = item->second;
                     auto dets = dp.activity_details.activity_index_contribution[name][upname];
-                    line = "impact:" dp.to_string_10(impact) + " " +
+                    line = "impact:" + dp.to_string_10(impact) + " " +
                            "koeff:" + dp.to_string_10(dets.koefficient) +
                            "rate:" + dp.to_string_10(dets.rate) + " " +
                            "real_rate:" + dp.get_acc_string_value(upname, "social_rate") + " " +
