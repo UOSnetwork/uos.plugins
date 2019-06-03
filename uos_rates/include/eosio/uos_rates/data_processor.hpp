@@ -791,6 +791,10 @@ namespace uos {
             string str_statement = "emission " + acc.first +
                                    " " + get_acc_string_value(acc.first, "current_cumulative_emission");
             mt_input.emplace_back(make_pair(str_statement, str_statement));
+            
+            string str_importance = "importance " + acc.first +
+                                   " " + get_acc_string_value(acc.first, "importance");
+            
         }
         mtree.set_accounts(mt_input);
         mtree.count_tree();
