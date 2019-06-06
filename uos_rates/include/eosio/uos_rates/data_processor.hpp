@@ -115,7 +115,7 @@ namespace uos {
 
         void calculate_emission();
 
-        void calculate_hash();
+        uos::merkle_tree<string> calculate_hash();
 
         static string to_string_4(double value);
         static string to_string_4(singularity::double_type value);
@@ -783,7 +783,7 @@ namespace uos {
         real_resulting_emission = to_string_4(real_resulting_emission_d);
     }
 
-    void data_processor::calculate_hash() {
+    uos::merkle_tree<string> data_processor::calculate_hash() {
         uos::merkle_tree<string> mtree;
         vector< pair< string, string> > mt_input;
         for(auto acc : accounts){
@@ -794,11 +794,14 @@ namespace uos {
             
             string str_importance = "importance " + acc.first +
                                    " " + get_acc_string_value(acc.first, "importance");
+            mt_input.emplace_back(make_pair(str_importance, str_importance));
             
         }
         mtree.set_accounts(mt_input);
         mtree.count_tree();
         result_hash = string(mtree.nodes_list[mtree.nodes_list.size() - 1][0]);
+
+        return mtree;
     }
 
     string data_processor::to_string_4(double value) {
