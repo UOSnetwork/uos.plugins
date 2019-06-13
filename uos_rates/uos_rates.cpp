@@ -1443,19 +1443,7 @@ namespace eosio {
 
                                   string proof = my->mtree.get_proof_for_contract(str_importance);
                                   
-                                //   fc::mutable_variant_object res_json;
-                                //   res_json.set("lower_bound", lower_bound);
-                                //   res_json.set("limit", limit);
-                                //   res_json.set("total", my->content.size());
-                                //   res_json.set("content", cont_res_obj);
-
-
-                                //   if (json.get_object().find("pretty") != json.get_object().end() && json["pretty"].as_bool()){
-                                //       cb(200, fc::json::to_pretty_string(res_json));
-                                //   } else {
-                                //       cb(200, fc::json::to_string(res_json));
-                                //   }
-                                cb(200, proof + "\n");
+                                  cb(200, proof + "\n");
                              }
                              catch(...)
                              {
