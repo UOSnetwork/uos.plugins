@@ -55,7 +55,7 @@ namespace uos_plugins{
     }
 
     void uos_BE_impl::irreversible_block_catcher(const eosio::chain::block_state_ptr &bsp) {
-        chain::controller &cc = app().get_plugin<chain_plugin>().chain();
+        eosio::chain::controller &cc = app().get_plugin<eosio::chain_plugin>().chain();
         auto irr_block_num = cc.last_irreversible_block_num();
         auto irr_block_id = cc.last_irreversible_block_id();
         
