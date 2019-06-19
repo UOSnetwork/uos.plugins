@@ -55,9 +55,13 @@ namespace uos_plugins{
     }
 
     void uos_BE_impl::irreversible_block_catcher(const eosio::chain::block_state_ptr &bsp) {
-        mongo->set_irreversible_block(bsp->block_num,bsp->block->id());
-        last_state.mongo_irrblockid = bsp->block->id();
-        last_state.mongo_irrblocknum = bsp->block_num;
+        chain::controller &cc = app().get_plugin<chain_plugin>().chain();
+        auto irr_block_num = cc.last_irreversible_block_num();
+        auto irr_block_id = cc.last_irreversible_block_id();
+        
+        mongo->set_irreversible_block(irr_block_num,irr_block_id);
+        last_state.mongo_irrblockid = irr_block_id;
+        last_state.mongo_irrblocknum = irr_block_num;
         mongo->set_last_state(last_state);
 //        elog(std::string("-"+std::string(bsp->block->id())+" "+std::to_string(bsp->block_num)));
     }
