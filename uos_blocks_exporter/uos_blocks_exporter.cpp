@@ -58,12 +58,19 @@ namespace uos_plugins{
         eosio::chain::controller &cc = app().get_plugin<eosio::chain_plugin>().chain();
         auto irr_block_num = cc.last_irreversible_block_num();
         auto irr_block_id = cc.last_irreversible_block_id();
-        
-        mongo->set_irreversible_block(irr_block_num,irr_block_id);
-        last_state.mongo_irrblockid = irr_block_id;
-        last_state.mongo_irrblocknum = irr_block_num;
+
+        while(irr_block_num > last_state.mongo_irrblocknum) {
+            mongo->set_irreversible_block(irr_block_num,irr_block_id);
+            //ilog("irr block set " + irr_block_id.str() + " " + std::to_string(irr_block_num));
+
+            auto irr_block = cc.fetch_block_state_by_id(irr_block_id);
+            irr_block_id = irr_block->prev();
+            irr_block_num = eosio::chain::block_header::num_from_id(irr_block_id);
+        }
+
+        last_state.mongo_irrblockid = cc.last_irreversible_block_id();
+        last_state.mongo_irrblocknum = cc.last_irreversible_block_num();
         mongo->set_last_state(last_state);
-//        elog(std::string("-"+std::string(bsp->block->id())+" "+std::to_string(bsp->block_num)));
     }
 
     void uos_BE_impl::accepted_block_catcher(const eosio::chain::block_state_ptr &asp) {
