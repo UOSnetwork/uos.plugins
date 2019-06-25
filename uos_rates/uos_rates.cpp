@@ -48,6 +48,12 @@ namespace eosio {
 
         void save_detalization(uos::data_processor dp);
 
+        void save_raw_details(
+        string step,
+        uint32_t block,
+        string hash,
+        singularity::activity_index_detalization_t details);
+
         void save_result();
 
         void report_hash();
@@ -566,8 +572,11 @@ namespace eosio {
 
         result.result_hash = dp.result_hash;
 
-        if(dump_calc_data)
+        if(dump_calc_data) {
             save_detalization(dp);
+            save_raw_details("priority", dp.current_calc_block, dp.result_hash, dp.priority_details);
+            save_raw_details("activity", dp.current_calc_block, dp.result_hash, dp.activity_details);
+        }
 
         //update current results
         accounts.clear();
@@ -609,6 +618,39 @@ namespace eosio {
         stats.set("resulting_emission",dp.resulting_emission);
         stats.set("real_resulting_emission",dp.real_resulting_emission);
 
+    }
+
+    void uos_rates_impl::save_raw_details(
+        string step,
+        uint32_t block,
+        string hash,
+        singularity::activity_index_detalization_t details) {
+        
+        //base
+        auto filename_base = step + "_base_" + std::to_string(block) + "_" + hash + ".csv";
+        auto path_base = dump_dir.string() + "/" + filename_base;
+        std::remove(path_base.c_str());
+        std::ofstream base_file(path_base, std::ios_base::app | std::ios_base::out);
+        for(auto item : details.base_index) {
+            base_file << item.first + ";" +
+                       uos::data_processor::to_string_10(item.second) + "\n";
+        }
+        base_file.close();
+
+        //contribution
+        auto filename_contribution = step + "_contribution_" + std::to_string(block) + "_" + hash + ".csv";
+        auto path_contribution = dump_dir.string() + "/" + filename_contribution;
+        std::remove(path_contribution.c_str());
+        std::ofstream contribution_file(path_contribution, std::ios_base::app | std::ios_base::out);
+        for(auto item : details.activity_index_contribution) {
+            for(auto subitem : item.second) {
+                contribution_file << item.first + ";" +
+                                     subitem.first + ";" +
+                                     uos::data_processor::to_string_10(subitem.second.koefficient) + ";" +
+                                     uos::data_processor::to_string_10(subitem.second.rate) + "\n";
+            }
+        }
+        contribution_file.close();
     }
 
     void uos_rates_impl::save_detalization(uos::data_processor dp) {
@@ -656,6 +698,21 @@ namespace eosio {
         }
         si_file.close();
 
+        //save trust interactions
+        auto filename_tr = "trust_interactions_" + std::to_string(dp.current_calc_block) + "_" + dp.result_hash + ".txt";
+        auto path_tr = dump_dir.string() + "/" + filename_tr;
+        std::remove(path_tr.c_str());
+        std::ofstream tr_file(path_tr, std::ios_base::app | std::ios_base::out);
+        for(auto tr : dp.common_relations["trust"]) {
+            tr_file << tr->get_name() + ";" +
+                       tr->get_source() + ";" +
+                       tr->get_target() + ";" +
+                       std::to_string(tr->get_height()) + ";" +
+                       std::to_string(tr->get_weight()) + ";" +
+                       std::to_string(tr->get_reverse_weight()) + "\n";
+        }
+        tr_file.close();
+        
         //save calculation details
         auto filename = "soc_rate_details_" + std::to_string(dp.current_calc_block) + "_" + dp.result_hash + ".txt";
         auto path = dump_dir.string() + "/" + filename;

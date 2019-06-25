@@ -471,12 +471,6 @@ namespace uos {
         params.stack_contribution = 0;
         params.weight_contribution = 0.8;
 
-        //map <string, double_type> validity;
-        //for(auto item: accounts)
-        //{
-//            double coeff = get_acc_double_value(item.first, "validity");
-//            validity.insert(std::pair<string, double_type>(item.first, (double_type)coeff));
-        //}
         map <string, double_type> stake;
         for(auto item: accounts){
             double staked_balance = get_acc_double_value(item.first, "staked_balance");
