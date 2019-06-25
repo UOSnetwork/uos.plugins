@@ -157,24 +157,10 @@ namespace uos {
                 add_lost_items(trx);
             }
 
-            auto block_num = stoi(trx["block_num"].as_string());
-
-            if(block_num < start_block || block_num > end_block)
-                continue;
-
             vector<std::shared_ptr<singularity::relation_t>> relations;
             map<string,vector<p_sing_relation_t>> com_relations;
-
-            if(trx["acc"].as_string() == "eosio.token") {
-                relations = parse_token_transaction(trx);
-                transfer_relations.insert(transfer_relations.end(),relations.begin(), relations.end());
-            }
-
-            if(trx["acc"].as_string() == "uos.activity" && trx["action"].as_string() != "socialaction") {
-                relations = parse_social_transaction(trx);
-                social_relations.insert(social_relations.end(),relations.begin(), relations.end());
-            }
-
+            
+            //add "trust" and "reference" transactions regardless of the block number
             if(trx["acc"].as_string() == "uos.activity" && trx["action"].as_string() == "socialaction") {
 
                 com_relations = parse_ext_social_transaction(trx);
@@ -201,9 +187,22 @@ namespace uos {
                 auto it = common_relations.find("trust");
                 if (it != common_relations.end()) {
                     relations = it->second;
-//                relations = parse_trust_transaction(trx);
-//                trust_relations.insert(trust_relations.end(),relations.begin(), relations.end());
                 }
+            }
+
+            auto block_num = stoi(trx["block_num"].as_string());
+
+            if(block_num < start_block || block_num > end_block)
+                continue;
+
+            if(trx["acc"].as_string() == "eosio.token") {
+                relations = parse_token_transaction(trx);
+                transfer_relations.insert(transfer_relations.end(),relations.begin(), relations.end());
+            }
+
+            if(trx["acc"].as_string() == "uos.activity" && trx["action"].as_string() != "socialaction") {
+                relations = parse_social_transaction(trx);
+                social_relations.insert(social_relations.end(),relations.begin(), relations.end());
             }
 
             if(block_num < activity_start_block || block_num > activity_end_block)
