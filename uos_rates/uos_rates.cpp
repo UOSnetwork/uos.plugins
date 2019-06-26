@@ -866,10 +866,12 @@ namespace eosio {
         //save to json
         try {
             string json_filename = "result_" + to_string(result.block_num) + "_" + result.result_hash + ".json";
+            string json_path = dump_dir.string() + "/" + json_filename;
+            std::remove(json_path.c_str());
             auto res_var = result.to_variant();
             auto res_json = fc::json::to_pretty_string(res_var);
             fstream json_file;
-            json_file.open(dump_dir.string() + "/" + json_filename, ios::out | ios::app);
+            json_file.open(json_path, ios::out | ios::app);
             json_file << res_json;
             json_file.close();
         }
@@ -877,6 +879,8 @@ namespace eosio {
 
         //save to csv
         string filename = "result_" + to_string(result.block_num) + "_" + result.result_hash + ".csv";
+        string csv_path = dump_dir.string() + "/" + filename;
+        std::remove(csv_path.c_str());
         CSVWriter csv_result{filename};
         csv_result.set_write_enabled(true);
         csv_result.set_path(dump_dir.string());
