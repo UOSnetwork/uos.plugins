@@ -501,6 +501,8 @@ namespace eosio {
         dp.calculate_transfer_rates();
         dp.calculate_stake_rates();
 
+        dp.set_intermediate_results();
+
         dp.calculate_importance(social_importance_share,transfer_importance_share);
         dp.calculate_referrals();
         dp.calculate_scaled_values();
