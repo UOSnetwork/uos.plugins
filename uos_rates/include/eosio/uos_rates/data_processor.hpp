@@ -95,7 +95,6 @@ namespace uos {
 
         void add_lost_items(fc::variant trx);
 
-        void calculate_validity_accounts();
         void calculate_social_rates();
         void set_intermediate_results();
         void calculate_transfer_rates();
@@ -444,7 +443,6 @@ namespace uos {
         auto social_calculator =
                 singularity::rank_calculator_factory::create_calculator_for_social_network(params);
 
-        //social_calculator->set_weights(validity);
         social_calculator->add_stack_vector(stake);
 
         social_calculator->add_block(social_relations);
@@ -616,81 +614,6 @@ namespace uos {
             content[cont.first].set("scaled_social_rate", to_string_10(scaled_social_rate));
         }
     }
-
-
-
-    void data_processor::calculate_validity_accounts()
-    {
-        map<string, fc::mutable_variant_object> m_accounts;
-        long total_stake = 0;
-        map <string, double > default_trust_coef;
-
-        for(auto item : balance_snapshot){
-            if(m_accounts.find(item["name"]) == m_accounts.end())
-                m_accounts[item["name"]] = fc::mutable_variant_object();
-
-            string cpu_weight = item["cpu_weight"];
-            string net_weight = item["net_weight"];
-            string name = item["name"];
-
-            if(cpu_weight == "-1") cpu_weight = "0";
-            if(net_weight == "-1") net_weight = "0";
-            long staked_balance = stol(cpu_weight) + stol(net_weight);
-            total_stake += staked_balance;
-
-            accounts[item["name"]].set("staked_balance", std::to_string(staked_balance));
-            accounts[item["name"]].set("validity", std::to_string(staked_balance));
-
-            default_trust_coef.insert(std::pair<string, double>(name, (double)staked_balance));
-        }
-
-        for(auto i: default_trust_coef )
-            default_trust_coef[i.first] = i.second/total_stake;
-
-        multimap <string,string> relation_trust;
-        map <string, set<string> > trust_relations_u;
-
-
-        auto it = common_relations.find("trust");
-        if (it != common_relations.end()) {
-            auto trust_relations = it->second;
-        for( const auto& rel : trust_relations )
-            relation_trust.insert(std::pair<string, string>(rel->get_target(), rel->get_source()));
-        }
-
-        for (multimap<string,string>::const_iterator it = relation_trust.begin(); it != relation_trust.end(); ++it)
-        {
-            set<string>& ss(trust_relations_u[it->first]);
-            ss.insert(it->second);
-        }
-
-        map<string, double > trust_coef;
-        for (map<string, set<string> >::iterator it = trust_relations_u.begin(); it != trust_relations_u.end(); ++it)
-        {
-            double  stake_others_balance = 0;
-            double coeff = 0;
-            double  stake_own_balance = get_acc_double_value(it->first,"staked_balance");
-            set<string> &st(it->second);
-            for(auto i: st){
-                stake_others_balance += get_acc_double_value(i,"staked_balance");
-                double sum_stake = stake_own_balance + stake_others_balance;
-                coeff = (stake_own_balance + stake_others_balance) /(double)total_stake;
-
-            }
-            trust_coef.insert(std::pair<string,double>(it->first, coeff));
-        }
-
-        std::swap(default_trust_coef, trust_coef);
-        default_trust_coef.insert(trust_coef.begin(), trust_coef.end());
-
-        for(auto item:default_trust_coef )
-        {
-            accounts[item.first].set("validity", to_string_10(item.second));
-            ilog("Account: " + item.first + " validity: " + to_string_10(item.second));
-        }
-        ilog("Total stake:" + to_string_10(total_stake));
-    }
-
 
     void data_processor::calculate_network_activity() {
         singularity::activity_period act_period;
