@@ -508,7 +508,6 @@ namespace uos {
     void data_processor::set_intermediate_results(){
         for(auto item : accounts){
             auto name = item.first;
-            ilog(name);
             
             auto di = intermediate_results.default_initial.find(name);
             if(di != intermediate_results.default_initial.end()){
