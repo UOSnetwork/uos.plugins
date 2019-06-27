@@ -90,12 +90,6 @@ namespace uos {
         void convert_transactions_to_relations();
         vector<std::shared_ptr<singularity::relation_t>> parse_token_transaction(fc::variant trx);
         vector<std::shared_ptr<singularity::relation_t>> parse_social_transaction(fc::variant trx);
-        /**
-         * @brief parse_trust_transaction deprecated
-         * @param trx
-         * @return
-         */
-        vector<std::shared_ptr<singularity::relation_t>> parse_trust_transaction(fc::variant trx);
 
         map<string,vector<p_sing_relation_t>> parse_ext_social_transaction(fc::variant trx);
 
@@ -234,35 +228,6 @@ namespace uos {
 
         vector<std::shared_ptr<singularity::relation_t>> result;
         result.push_back(std::make_shared<transaction_t>(transfer));
-        return result;
-    }
-
-    vector<std::shared_ptr<singularity::relation_t>> data_processor::parse_trust_transaction(fc::variant trx){
-
-        vector<std::shared_ptr<singularity::relation_t>> result;
-
-        if (trx["action"].as_string() == "socialaction" ) {
-
-            auto block_num = stoi(trx["block_num"].as_string());
-            auto block_height = current_calc_block - block_num;
-
-
-            auto from = trx["data"]["acc"].as_string();
-            auto action_json = trx["data"]["action_json"].as_string();
-
-
-            //TODO::check json is valid; check validate to name
-            if (action_json.find("trust") != std::string::npos ) {
-
-                auto json_data = fc::json::from_string(action_json);
-                auto from = json_data["data"]["account_from"].as_string();
-                auto to = json_data["data"]["account_to"].as_string();
-
-                trust_t trust(from, to, block_height);
-                result.push_back(std::make_shared<trust_t>(trust));
-            }
-        }
-
         return result;
     }
 
