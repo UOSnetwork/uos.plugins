@@ -63,6 +63,8 @@ namespace uos_plugins{
             mongo->set_irreversible_block(irr_block_num,irr_block_id);
             //ilog("irr block set " + irr_block_id.str() + " " + std::to_string(irr_block_num));
 
+            if(irr_block_num == 1) break;
+
             auto irr_block = cc.fetch_block_state_by_id(irr_block_id);
             irr_block_id = irr_block->prev();
             irr_block_num = eosio::chain::block_header::num_from_id(irr_block_id);
