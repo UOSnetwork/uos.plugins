@@ -69,6 +69,7 @@ namespace uos {
         std::vector<std::string> trx_newline_errors;
         std::vector<std::string> trx_wrong_actor_errors;
         std::vector<std::string> trx_wrong_content_errors;
+        std::vector<std::string> trx_duplicate_content_errors;
 
         //output
         map<string, fc::mutable_variant_object> accounts;
@@ -359,31 +360,118 @@ namespace uos {
         uint32_t block) {
             
             if(content.find(organization) != content.end()) {
-                trx_wrong_actor_errors.push_back(std::to_string(block));
+                trx_wrong_actor_errors.push_back(std::to_string(block) + "_make_organization_" + organization);
+                return;
             }
             
             if(accounts.find(organization) == accounts.end()){
-                accounts[organization] = fc::mutable_variant_object();
                 accounts[organization].set("origin", "make_organization");
             }
     }
 
     void data_processor::add_content(
         std::string author,
-        std::string content,
+        std::string content_id,
         uint32_t block) {
+            
+            if(accounts.find(content_id) != accounts.end()){
+                trx_wrong_content_errors.push_back(std::to_string(block) + "_make_content_" + content_id);
+                return;
+            }
+
+            if(content.find(author) != content.end()){
+                trx_wrong_actor_errors.push_back(std::to_string(block) + "_make_content_" + author);
+                return;
+            }
+
+            if(content.find(content_id) != content.end()){
+                trx_duplicate_content_errors.push_back(std::to_string(block) + "_" + content_id + "_" + author);
+                return;
+            }
+
+            if(accounts.find(author) == accounts.end()){
+                accounts[author].set("origin", "make_content");
+            }
+
+            content[content_id].set("origin", "make_content");
+
+            if(start_block < block && block <= end_block) {
+                ownership_t ownership(author, content_id, current_calc_block - block);
+                social_relations.push_back(std::make_shared<ownership_t>(ownership));
+            }
+
+            if(activity_start_block < block && block <= activity_end_block) {
+                singularity::transaction_t tran(1,0,author,content_id,time_t(0),0,0,current_calc_block - block);
+                activity_relations.emplace_back(tran);
+            }
     }
 
     void data_processor::add_upvote(
         std::string from,
         std::string to,
         uint32_t block) {
+            
+            if(accounts.find(to) != accounts.end()) {
+                trx_wrong_content_errors.push_back(std::to_string(block) + "_upvote_" + to);
+                return;
+            }
+
+            if(content.find(from) != content.end()) {
+                trx_wrong_actor_errors.push_back(std::to_string(block) + "_upvote_" + from);
+                return;
+            }
+
+            if(accounts.find(from) == accounts.end()) {
+                accounts[from].set("origin", "upvote");
+            }
+
+            if(content.find(to) == content.end()) {
+                content[to].set("origin", "upvote");
+            }
+
+            if(start_block < block && block <= end_block) {
+                upvote_t upvote(from, to, current_calc_block - block);
+                social_relations.push_back(std::make_shared<upvote_t>(upvote));
+            }
+
+            if(activity_start_block < block && block <= activity_end_block) {
+                singularity::transaction_t tran(1,0,from,to,time_t(0),0,0,current_calc_block - block);
+                activity_relations.emplace_back(tran);
+            }
     }
 
     void data_processor::add_downvote(
         std::string from,
         std::string to,
         uint32_t block) {
+
+            if(accounts.find(to) != accounts.end()) {
+                trx_wrong_content_errors.push_back(std::to_string(block) + "_downvote_" + to);
+                return;
+            }
+
+            if(content.find(from) != content.end()) {
+                trx_wrong_actor_errors.push_back(std::to_string(block) + "_downvote_" + from);
+                return;
+            }
+
+            if(accounts.find(from) == accounts.end()) {
+                accounts[from].set("origin", "downvote");
+            }
+
+            if(content.find(to) == content.end()) {
+                content[to].set("origin", "downvote");
+            }
+
+            if(start_block < block && block <= end_block) {
+                downvote_t downvote(from, to, current_calc_block - block);
+                social_relations.push_back(std::make_shared<downvote_t>(downvote));
+            }
+
+            if(activity_start_block < block && block <= activity_end_block) {
+                singularity::transaction_t tran(1,0,from,to,time_t(0),0,0,current_calc_block - block);
+                activity_relations.emplace_back(tran);
+            }
     }
     
     void data_processor::add_transfer(
@@ -391,19 +479,52 @@ namespace uos {
         std::string to,
         uint64_t quantity,
         uint32_t block) {
+
+            if(start_block < block && block <= end_block) {
+                transaction_t transfer(quantity,from, to,0 , current_calc_block - block);
+                transfer_relations.push_back(std::make_shared<transaction_t>(transfer));
+            }
+
+            if(activity_start_block < block && block <= activity_end_block) {
+                singularity::transaction_t tran(quantity,0,from,to,time_t(0),0,0,current_calc_block - block);
+                activity_relations.emplace_back(tran);
+            }
     }
 
     void data_processor::add_trust(
         std::string from,
         std::string to,
         uint32_t block) {
+            if(accounts.find(from) == accounts.end()) {
+                trx_wrong_actor_errors.push_back(std::to_string(block) + "_trust_" + from);
+                return;
+            }
 
+            if(accounts.find(to) == accounts.end()) {
+                trx_wrong_actor_errors.push_back(std::to_string(block) + "_trust_" + to);
+                return;
+            }
+
+            trust_t trust(from, to, current_calc_block - block);
+            common_relations["trust"].push_back(std::make_shared<trust_t>(trust));
     }
 
     void data_processor::add_referral(
         std::string from,
         std::string to,
         uint32_t block){
+            if(accounts.find(from) == accounts.end()) {
+                trx_wrong_actor_errors.push_back(std::to_string(block) + "_referral_" + from);
+                return;
+            }
+
+            if(accounts.find(to) == accounts.end()) {
+                trx_wrong_actor_errors.push_back(std::to_string(block) + "_referral_" + to);
+                return;
+            }
+
+            reference_t reference(from, to, current_calc_block - block);
+            common_relations["reference"].push_back(std::make_shared<reference_t>(reference));            
     }
     
     vector<std::shared_ptr<singularity::relation_t>> data_processor::parse_token_transaction(fc::variant trx){
