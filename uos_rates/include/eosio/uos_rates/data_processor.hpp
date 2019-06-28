@@ -50,14 +50,25 @@ namespace uos {
         string prev_max_network_activity = "0";
 
         //intermediate
+        int32_t start_block;
+        int32_t end_block;
+        int32_t activity_start_block;
+        int32_t activity_end_block;
+
         set<std::string> actor_ids;
-        set<std::string> content_ids;
+        set<std::string> content_ids;   
         vector<std::shared_ptr<singularity::relation_t>> transfer_relations;
         vector<std::shared_ptr<singularity::relation_t>> social_relations;
         vector<std::shared_ptr<singularity::relation_t>> trust_relations;//new type relations
         map<string,vector<p_sing_relation_t>> common_relations;//trust and reference
 
         vector<singularity::transaction_t> activity_relations;
+
+        //error logs
+        std::vector<std::string> trx_parsing_errors;
+        std::vector<std::string> trx_newline_errors;
+        std::vector<std::string> trx_wrong_actor_errors;
+        std::vector<std::string> trx_wrong_content_errors;
 
         //output
         map<string, fc::mutable_variant_object> accounts;
@@ -88,12 +99,26 @@ namespace uos {
         void prepare_actor_ids();
 
         void convert_transactions_to_relations();
+        void set_block_limits();
         vector<std::shared_ptr<singularity::relation_t>> parse_token_transaction(fc::variant trx);
         vector<std::shared_ptr<singularity::relation_t>> parse_social_transaction(fc::variant trx);
 
         map<string,vector<p_sing_relation_t>> parse_ext_social_transaction(fc::variant trx);
 
         void add_lost_items(fc::variant trx);
+
+        void process_transaction_history();
+        void process_old_social_transaction(fc::variant trx);
+        void process_generic_social_transaction(fc::variant trx);
+        void process_transfer_transaction(fc::variant trx);
+
+        void add_organization( std::string creator, std::string organization, uint32_t block);
+        void add_content( std::string author, std::string content, uint32_t block);
+        void add_upvote( std::string from, std::string to, uint32_t block);
+        void add_downvote( std::string from, std::string to, uint32_t block);
+        void add_transfer( std::string from, std::string to, uint64_t quantity, uint32_t block);
+        void add_trust( std::string from, std::string to, uint32_t block);
+        void add_referral( std::string from, std::string to, uint32_t block);
 
         void calculate_social_rates();
         void set_intermediate_results();
@@ -127,21 +152,13 @@ namespace uos {
 
     void data_processor::prepare_actor_ids() {
         for(auto item : balance_snapshot) {
-            actor_ids.insert(item["name"]);
+            if(accounts.find(item["name"]) == accounts.end()){
+                accounts[item["name"]].set("origin", "balance");
+            }
         }
     }
 
     void data_processor::convert_transactions_to_relations() {
-
-        int32_t end_block = current_calc_block;
-        int32_t start_block = end_block - transaction_window + 1;
-        if (start_block < 1)
-            start_block = 1;
-
-        int32_t activity_end_block = end_block;
-        int32_t activity_start_block = end_block - activity_window + 1;
-        if (activity_start_block < 1)
-            activity_start_block = 1;
 
         for(auto trx : source_transactions){
 
@@ -216,6 +233,179 @@ namespace uos {
         }
     }
 
+    void data_processor::set_block_limits() {
+        end_block = current_calc_block;
+        start_block = end_block - transaction_window + 1;
+        if (start_block < 1)
+            start_block = 1;
+
+        activity_end_block = end_block;
+        activity_start_block = end_block - activity_window + 1;
+        if (activity_start_block < 1)
+            activity_start_block = 1;
+    }
+
+    void data_processor::process_transaction_history() {
+        for(auto trx : source_transactions){
+            try {
+                //reject if transaction contains \n
+                auto json = fc::json::to_string(trx);auto from = trx["data"]["acc"].as_string();
+                auto action_json = trx["data"]["action_json"].as_string();
+                if(json.find("\n") != std::string::npos){
+                    trx_newline_errors.push_back(json);
+                    continue;
+                }
+
+                if(trx["acc"].as_string() == "uos.activity" && trx["action"].as_string() != "socialaction") {
+                    process_old_social_transaction(trx);
+                }
+                if(trx["acc"].as_string() == "uos.activity" && trx["action"].as_string() == "socialaction") {
+                    process_generic_social_transaction(trx);
+                }
+                if(trx["acc"].as_string() == "eosio.token") {
+                    process_transfer_transaction(trx);
+                }
+            }
+            catch (...){
+                trx_parsing_errors.push_back(fc::json::to_string(trx));
+            }
+        }
+    }
+
+    void data_processor::process_old_social_transaction(fc::variant trx) {
+        
+        auto block_num = stoi(trx["block_num"].as_string());
+
+        if (trx["action"].as_string() == "makecontent" && trx["data"]["content_type_id"].as_string() == "4" ) {
+            add_organization(
+                trx["data"]["acc"].as_string(),
+                trx["data"]["content_id"].as_string(),
+                block_num);
+        }
+
+        if (trx["action"].as_string() == "makecontent" && trx["data"]["content_type_id"].as_string() == "4" ) {
+            add_content(
+                trx["data"]["acc"].as_string(),
+                trx["data"]["content_id"].as_string(),
+                block_num);
+        }
+
+        if (trx["action"].as_string() == "usertocont" && trx["data"]["interaction_type_id"].as_string() == "2") {
+            add_upvote(
+                trx["data"]["acc"].as_string(),
+                trx["data"]["content_id"].as_string(),
+                block_num);
+        }
+
+        if (trx["action"].as_string() == "usertocont" && trx["data"]["interaction_type_id"].as_string() == "4") {
+            add_downvote(
+                trx["data"]["acc"].as_string(),
+                trx["data"]["content_id"].as_string(),
+                block_num);
+        }
+        
+        if (trx["action"].as_string() == "makecontorg") {
+            add_content(
+                trx["data"]["organization_id"].as_string(),
+                trx["data"]["content_id"].as_string(),
+                block_num);
+        }
+    }
+
+    void data_processor::process_generic_social_transaction(fc::variant trx) {
+        
+        auto block_num = stoi(trx["block_num"].as_string());
+        auto from = trx["data"]["acc"].as_string();
+        
+        auto action_json = trx["data"]["action_json"].as_string();
+        auto json_data = fc::json::from_string(action_json);
+
+        if(json_data["interaction"] == "trust") {
+            add_trust(
+                json_data["data"]["account_from"].as_string(),
+                json_data["data"]["account_to"].as_string(),
+                block_num);
+        }
+
+        if(json_data["interaction"] == "reference") {
+            add_referral(
+                json_data["data"]["account_from"].as_string(),
+                json_data["data"]["account_to"].as_string(),
+                block_num);
+        }
+
+        if(json_data["interaction"] == "referral") {
+            add_referral(
+                json_data["data"]["account_from"].as_string(),
+                json_data["data"]["account_to"].as_string(),
+                block_num);
+        }
+    }
+
+    void data_processor::process_transfer_transaction(fc::variant trx) {
+        
+        auto block_num = stoi(trx["block_num"].as_string());
+
+        add_transfer(
+            trx["data"]["from"].as_string(),
+            trx["data"]["to"].as_string(),
+            asset::from_string(trx["data"]["quantity"].as_string()).get_amount(),
+            block_num);
+    }
+
+    void data_processor::add_organization(
+        std::string creator,
+        std::string organization,
+        uint32_t block) {
+            
+            if(content.find(organization) != content.end()) {
+                trx_wrong_actor_errors.push_back(std::to_string(block));
+            }
+            
+            if(accounts.find(organization) == accounts.end()){
+                accounts[organization] = fc::mutable_variant_object();
+                accounts[organization].set("origin", "make_organization");
+            }
+    }
+
+    void data_processor::add_content(
+        std::string author,
+        std::string content,
+        uint32_t block) {
+    }
+
+    void data_processor::add_upvote(
+        std::string from,
+        std::string to,
+        uint32_t block) {
+    }
+
+    void data_processor::add_downvote(
+        std::string from,
+        std::string to,
+        uint32_t block) {
+    }
+    
+    void data_processor::add_transfer(
+        std::string from,
+        std::string to,
+        uint64_t quantity,
+        uint32_t block) {
+    }
+
+    void data_processor::add_trust(
+        std::string from,
+        std::string to,
+        uint32_t block) {
+
+    }
+
+    void data_processor::add_referral(
+        std::string from,
+        std::string to,
+        uint32_t block){
+    }
+    
     vector<std::shared_ptr<singularity::relation_t>> data_processor::parse_token_transaction(fc::variant trx){
         auto from = trx["data"]["from"].as_string();
         auto to = trx["data"]["to"].as_string();
@@ -230,8 +420,7 @@ namespace uos {
         return result;
     }
 
-    map<string,vector<p_sing_relation_t>> data_processor::parse_ext_social_transaction(fc::variant trx)
-    {
+    map<string,vector<p_sing_relation_t>> data_processor::parse_ext_social_transaction(fc::variant trx){
 
         vector<p_sing_relation_t> trust_result;
         vector <p_sing_relation_t>reference_result;
