@@ -494,7 +494,8 @@ namespace eosio {
 
         //interactions format conversion
         dp.prepare_actor_ids();
-        dp.convert_transactions_to_relations();
+        dp.set_block_limits();
+        dp.process_transaction_history();
 
         //calculations of the rates and importance
         dp.calculate_social_rates();
