@@ -560,6 +560,8 @@ namespace eosio {
             item.name = name;
             item.type = "CONTENT";
 
+            item.origin = dp.get_cont_string_value(name, "origin");
+
             item.soc_rate = dp.get_cont_string_value(name, "social_rate");
             item.soc_rate_scaled = dp.get_cont_string_value(name, "scaled_social_rate");
 
@@ -691,7 +693,7 @@ namespace eosio {
         std::ofstream rej_file = prepare_file("trx_rejects", dp.current_calc_block, dp.result_hash, "csv");
         for(auto rej_list : dp.trx_rejects) {
             for(auto rej : rej_list.second) {
-                rej_file << rej_list.first + ";" + rej;
+                rej_file << rej_list.first + ";" + rej + "\n";
             }
         }
 

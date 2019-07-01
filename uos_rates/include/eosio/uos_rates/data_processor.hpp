@@ -164,9 +164,11 @@ namespace uos {
         for(auto trx : source_transactions){
             try {
                 //reject if transaction contains \n
-                auto json = fc::json::to_string(trx);auto from = trx["data"]["acc"].as_string();
-                auto action_json = trx["data"]["action_json"].as_string();
-                if(json.find("\n") != std::string::npos){
+                auto json = fc::json::to_string(trx);
+                if(json.find("\n") != std::string::npos ||
+                   json.find("\\n") != std::string::npos ||
+                   json.find("\r") != std::string::npos ||
+                   json.find("\\r") != std::string::npos){
                     trx_rejects["newline"].push_back(json);
                     continue;
                 }
@@ -181,6 +183,10 @@ namespace uos {
                     process_transfer_transaction(trx);
                 }
             }
+            catch (std::exception &ex){
+                trx_rejects["parsing_error"].push_back(fc::json::to_string(trx));
+                elog(ex.what());
+                }
             catch (...){
                 trx_rejects["parsing_error"].push_back(fc::json::to_string(trx));
             }
@@ -198,7 +204,7 @@ namespace uos {
                 block_num);
         }
 
-        if (trx["action"].as_string() == "makecontent" && trx["data"]["content_type_id"].as_string() == "4" ) {
+        if (trx["action"].as_string() == "makecontent" && trx["data"]["content_type_id"].as_string() != "4" ) {
             add_content(
                 trx["data"]["acc"].as_string(),
                 trx["data"]["content_id"].as_string(),
@@ -240,20 +246,18 @@ namespace uos {
                 json_data["data"]["account_from"].as_string(),
                 json_data["data"]["account_to"].as_string(),
                 block_num);
-        }
-
-        if(json_data["interaction"] == "reference") {
+        } else if(json_data["interaction"] == "reference") {
             add_referral(
                 json_data["data"]["account_from"].as_string(),
                 json_data["data"]["account_to"].as_string(),
                 block_num);
-        }
-
-        if(json_data["interaction"] == "referral") {
+        } else if(json_data["interaction"] == "referral") {
             add_referral(
                 json_data["data"]["account_from"].as_string(),
                 json_data["data"]["account_to"].as_string(),
                 block_num);
+        } else {
+            trx_rejects["unused_generics"].push_back(fc::json::to_string(trx));
         }
     }
 
