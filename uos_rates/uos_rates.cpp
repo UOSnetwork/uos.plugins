@@ -528,6 +528,8 @@ namespace eosio {
             item.name = name;
             item.type = "ACCOUNT";
 
+            item.origin = dp.get_acc_string_value(name, "origin");
+
             item.soc_rate = dp.get_acc_string_value(name, "social_rate");
             item.soc_rate_scaled = dp.get_acc_string_value(name, "scaled_social_rate");
             item.trans_rate = dp.get_acc_string_value(name, "transfer_rate");
@@ -685,6 +687,14 @@ namespace eosio {
 
         }
 
+        //save trx rejects
+        std::ofstream rej_file = prepare_file("trx_rejects", dp.current_calc_block, dp.result_hash, "csv");
+        for(auto rej_list : dp.trx_rejects) {
+            for(auto rej : rej_list.second) {
+                rej_file << rej_list.first + ";" + rej;
+            }
+        }
+
         //save social interactions
         std::ofstream si_file = prepare_file("soc_interactions", dp.current_calc_block, dp.result_hash, "txt");
         for(auto si : dp.social_relations) {
@@ -772,17 +782,6 @@ namespace eosio {
                     det_file << line + "\n";
                 }
             }
-
-//            if(dp.activity_details.stack_contribution.find(name) !=
-//               dp.activity_details.stack_contribution.end()){
-//                line = "stake: ";
-//                for(auto item : dp.activity_details.stack_contribution[name]){
-//                    line += item.first +
-//                            ":" + dp.to_string_10(item.second.koefficient) +
-//                            "*" + dp.to_string_10(item.second.rate) + " ";
-//                }
-//                det_file << line + "\n";
-//            }
 
             det_file << "\n";
         }
@@ -882,6 +881,7 @@ namespace eosio {
         vector<string> heading{
                 "name",
                 "type",
+                "origin",
                 "soc_rate",
                 "soc_rate_scaled",
                 "trans_rate",
@@ -908,6 +908,7 @@ namespace eosio {
             vector<string> vec{
                 item.second.name,
                 item.second.type,
+                item.second.origin,
                 item.second.soc_rate,
                 item.second.soc_rate_scaled,
                 item.second.trans_rate,
@@ -1150,12 +1151,6 @@ namespace eosio {
             for (uint64_t i = 1; i < num; i++) {
                 if (trx_queue.empty())
                     break;
-//                ilog("trx_queue.front() " + trx_queue.front().account + " " +
-//                             trx_queue.front().acc_from + " " +
-//                             trx_queue.front().action + " " +
-//                             fc::json::to_string(trx_queue.front().data) + " " +
-//                             trx_queue.front().priv_key + " " + " " +
-//                             trx_queue.front().pub_key);
                 if((last.account==trx_queue.front().account)&&(last.action==trx_queue.front().action)){
                     temp.push(trx_queue.front());
                     trx_queue.pop();

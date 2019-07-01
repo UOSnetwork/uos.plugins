@@ -32,6 +32,8 @@ namespace eosio {
         string name;
         string type;
 
+        string origin;
+
         string soc_rate = "0";
         string soc_rate_scaled = "0";
         string trans_rate = "0";
@@ -89,6 +91,8 @@ namespace eosio {
                 ri.name = vi["name"].as_string();
                 ri.type = vi["type"].as_string();
 
+                ri.origin = vi["origin"].as_string();
+
                 ri.soc_rate = vi["soc_rate"].as_string();
                 ri.soc_rate_scaled = vi["soc_rate_scaled"].as_string();
                 ri.trans_rate = vi["trans_rate"].as_string();
@@ -125,6 +129,8 @@ namespace eosio {
                 fc::mutable_variant_object res_var;
                 res_var["name"] = item.second.name;
                 res_var["type"] = item.second.type;
+
+                res_var["origin"] = item.second.origin;
 
                 res_var["soc_rate"] = item.second.soc_rate;
                 res_var["soc_rate_scaled"] = item.second.soc_rate_scaled;

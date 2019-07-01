@@ -65,7 +65,7 @@ namespace uos {
         vector<singularity::transaction_t> activity_relations;
 
         //trx rejects from history
-        std::map<std::string,std::vector<std::string>> trx_rejects;
+        map<std::string,std::vector<std::string>> trx_rejects;
 
         //output
         map<string, fc::mutable_variant_object> accounts;
