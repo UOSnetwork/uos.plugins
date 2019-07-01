@@ -64,12 +64,8 @@ namespace uos {
 
         vector<singularity::transaction_t> activity_relations;
 
-        //error logs
-        std::vector<std::string> trx_parsing_errors;
-        std::vector<std::string> trx_newline_errors;
-        std::vector<std::string> trx_wrong_actor_errors;
-        std::vector<std::string> trx_wrong_content_errors;
-        std::vector<std::string> trx_duplicate_content_errors;
+        //trx rejects from history
+        std::map<std::string,std::vector<std::string>> trx_rejects;
 
         //output
         map<string, fc::mutable_variant_object> accounts;
@@ -171,7 +167,7 @@ namespace uos {
                 auto json = fc::json::to_string(trx);auto from = trx["data"]["acc"].as_string();
                 auto action_json = trx["data"]["action_json"].as_string();
                 if(json.find("\n") != std::string::npos){
-                    trx_newline_errors.push_back(json);
+                    trx_rejects["newline"].push_back(json);
                     continue;
                 }
 
@@ -186,7 +182,7 @@ namespace uos {
                 }
             }
             catch (...){
-                trx_parsing_errors.push_back(fc::json::to_string(trx));
+                trx_rejects["parsing_error"].push_back(fc::json::to_string(trx));
             }
         }
     }
@@ -278,7 +274,7 @@ namespace uos {
         uint32_t block) {
             
             if(content.find(organization) != content.end()) {
-                trx_wrong_actor_errors.push_back(std::to_string(block) + "_make_organization_" + organization);
+                trx_rejects["wrong_actor"].push_back(std::to_string(block) + "_make_organization_" + organization);
                 return;
             }
             
@@ -293,17 +289,17 @@ namespace uos {
         uint32_t block) {
             
             if(accounts.find(content_id) != accounts.end()){
-                trx_wrong_content_errors.push_back(std::to_string(block) + "_make_content_" + content_id);
+                trx_rejects["wrong_content"].push_back(std::to_string(block) + "_make_content_" + content_id);
                 return;
             }
 
             if(content.find(author) != content.end()){
-                trx_wrong_actor_errors.push_back(std::to_string(block) + "_make_content_" + author);
+                trx_rejects["wrong_actor"].push_back(std::to_string(block) + "_make_content_" + author);
                 return;
             }
 
             if(content.find(content_id) != content.end()){
-                trx_duplicate_content_errors.push_back(std::to_string(block) + "_" + content_id + "_" + author);
+                trx_rejects["duplicate_content_ownership"].push_back(std::to_string(block) + "_" + content_id + "_" + author);
                 return;
             }
 
@@ -330,12 +326,12 @@ namespace uos {
         uint32_t block) {
             
             if(accounts.find(to) != accounts.end()) {
-                trx_wrong_content_errors.push_back(std::to_string(block) + "_upvote_" + to);
+                trx_rejects["wrong_content"].push_back(std::to_string(block) + "_upvote_" + to);
                 return;
             }
 
             if(content.find(from) != content.end()) {
-                trx_wrong_actor_errors.push_back(std::to_string(block) + "_upvote_" + from);
+                trx_rejects["wrong_actor"].push_back(std::to_string(block) + "_upvote_" + from);
                 return;
             }
 
@@ -364,12 +360,12 @@ namespace uos {
         uint32_t block) {
 
             if(accounts.find(to) != accounts.end()) {
-                trx_wrong_content_errors.push_back(std::to_string(block) + "_downvote_" + to);
+                trx_rejects["wrong_content"].push_back(std::to_string(block) + "_downvote_" + to);
                 return;
             }
 
             if(content.find(from) != content.end()) {
-                trx_wrong_actor_errors.push_back(std::to_string(block) + "_downvote_" + from);
+                trx_rejects["wrong_actor"].push_back(std::to_string(block) + "_downvote_" + from);
                 return;
             }
 
@@ -414,12 +410,12 @@ namespace uos {
         std::string to,
         uint32_t block) {
             if(accounts.find(from) == accounts.end()) {
-                trx_wrong_actor_errors.push_back(std::to_string(block) + "_trust_" + from);
+                trx_rejects["wrong_actor"].push_back(std::to_string(block) + "_trust_" + from);
                 return;
             }
 
             if(accounts.find(to) == accounts.end()) {
-                trx_wrong_actor_errors.push_back(std::to_string(block) + "_trust_" + to);
+                trx_rejects["wrong_actor"].push_back(std::to_string(block) + "_trust_" + to);
                 return;
             }
 
@@ -432,12 +428,12 @@ namespace uos {
         std::string to,
         uint32_t block){
             if(accounts.find(from) == accounts.end()) {
-                trx_wrong_actor_errors.push_back(std::to_string(block) + "_referral_" + from);
+                trx_rejects["wrong_actor"].push_back(std::to_string(block) + "_referral_" + from);
                 return;
             }
 
             if(accounts.find(to) == accounts.end()) {
-                trx_wrong_actor_errors.push_back(std::to_string(block) + "_referral_" + to);
+                trx_rejects["wrong_actor"].push_back(std::to_string(block) + "_referral_" + to);
                 return;
             }
 
