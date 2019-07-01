@@ -46,6 +46,8 @@ namespace eosio {
 
         void calculate_rates(uint32_t current_calc_block_num);
 
+        std::ofstream prepare_file(string name, uint64_t block, string hash, string extension);
+
         void save_detalization(uos::data_processor dp);
 
         void save_raw_details(
@@ -618,6 +620,14 @@ namespace eosio {
 
     }
 
+    std::ofstream uos_rates_impl::prepare_file(string name, uint64_t block, string hash, string extension){
+        auto filename = name + "_" + std::to_string(block) + "_" + hash + "." + extension;
+        auto path = dump_dir.string() + "/" + filename;
+        std::remove(path.c_str());
+        std::ofstream file(path, std::ios_base::app | std::ios_base::out);
+        return file;
+    }
+
     void uos_rates_impl::save_raw_details(
         string step,
         uint32_t block,
@@ -625,10 +635,7 @@ namespace eosio {
         singularity::activity_index_detalization_t details) {
         
         //base
-        auto filename_base = step + "_base_" + std::to_string(block) + "_" + hash + ".csv";
-        auto path_base = dump_dir.string() + "/" + filename_base;
-        std::remove(path_base.c_str());
-        std::ofstream base_file(path_base, std::ios_base::app | std::ios_base::out);
+        std::ofstream base_file = prepare_file(step + "_base", block, hash, "csv");
         for(auto item : details.base_index) {
             base_file << item.first + ";" +
                        uos::data_processor::to_string_10(item.second) + "\n";
@@ -636,10 +643,7 @@ namespace eosio {
         base_file.close();
 
         //contribution
-        auto filename_contribution = step + "_contribution_" + std::to_string(block) + "_" + hash + ".csv";
-        auto path_contribution = dump_dir.string() + "/" + filename_contribution;
-        std::remove(path_contribution.c_str());
-        std::ofstream contribution_file(path_contribution, std::ios_base::app | std::ios_base::out);
+        std::ofstream contribution_file = prepare_file(step + "_contribution", block, hash, "csv");
         for(auto item : details.activity_index_contribution) {
             for(auto subitem : item.second) {
                 contribution_file << item.first + ";" +
@@ -682,10 +686,7 @@ namespace eosio {
         }
 
         //save social interactions
-        auto filename_si = "soc_interactions_" + std::to_string(dp.current_calc_block) + "_" + dp.result_hash + ".txt";
-        auto path_si = dump_dir.string() + "/" + filename_si;
-        std::remove(path_si.c_str());
-        std::ofstream si_file(path_si, std::ios_base::app | std::ios_base::out);
+        std::ofstream si_file = prepare_file("soc_interactions", dp.current_calc_block, dp.result_hash, "txt");
         for(auto si : dp.social_relations) {
             si_file << si->get_name() + ";" +
                        si->get_source() + ";" +
@@ -697,10 +698,7 @@ namespace eosio {
         si_file.close();
 
         //save trust interactions
-        auto filename_tr = "trust_interactions_" + std::to_string(dp.current_calc_block) + "_" + dp.result_hash + ".txt";
-        auto path_tr = dump_dir.string() + "/" + filename_tr;
-        std::remove(path_tr.c_str());
-        std::ofstream tr_file(path_tr, std::ios_base::app | std::ios_base::out);
+        std::ofstream tr_file = prepare_file("trust_interactions", dp.current_calc_block, dp.result_hash, "txt");
         for(auto tr : dp.common_relations["trust"]) {
             tr_file << tr->get_name() + ";" +
                        tr->get_source() + ";" +
@@ -712,10 +710,7 @@ namespace eosio {
         tr_file.close();
         
         //save calculation details
-        auto filename = "soc_rate_details_" + std::to_string(dp.current_calc_block) + "_" + dp.result_hash + ".txt";
-        auto path = dump_dir.string() + "/" + filename;
-        std::remove(path.c_str());
-        std::ofstream det_file(path, std::ios_base::app | std::ios_base::out);
+        std::ofstream det_file = prepare_file("soc_rate_details", dp.current_calc_block, dp.result_hash, "txt");;
 
         //account rates sorted by rate desc
         multimap<double, string> acc_rates;
