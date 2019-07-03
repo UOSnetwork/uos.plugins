@@ -55,8 +55,7 @@ namespace uos {
         int32_t activity_start_block;
         int32_t activity_end_block;
 
-        set<std::string> actor_ids;
-        set<std::string> content_ids;   
+        long total_stake = 0;
         vector<std::shared_ptr<singularity::relation_t>> transfer_relations;
         vector<std::shared_ptr<singularity::relation_t>> social_relations;
         vector<std::shared_ptr<singularity::relation_t>> trust_relations;//new type relations
@@ -145,6 +144,16 @@ namespace uos {
             if(accounts.find(item["name"]) == accounts.end()){
                 accounts[item["name"]].set("origin", "balance");
             }
+
+            string cpu_weight = item["cpu_weight"];
+            string net_weight = item["net_weight"];
+
+            if(cpu_weight == "-1") cpu_weight = "0";
+            if(net_weight == "-1") net_weight = "0";
+            long staked_balance = stol(cpu_weight) + stol(net_weight);
+            total_stake += staked_balance;
+
+            accounts[item["name"]].set("staked_balance", std::to_string(staked_balance));
         }
     }
 
@@ -533,22 +542,6 @@ namespace uos {
     }
 
     void data_processor::calculate_stake_rates() {
-
-        long total_stake = 0;
-        for(auto item : balance_snapshot){
-            if(accounts.find(item["name"]) == accounts.end())
-                accounts[item["name"]] = fc::mutable_variant_object();
-
-            string cpu_weight = item["cpu_weight"];
-            string net_weight = item["net_weight"];
-
-            if(cpu_weight == "-1") cpu_weight = "0";
-            if(net_weight == "-1") net_weight = "0";
-            long staked_balance = stol(cpu_weight) + stol(net_weight);
-            total_stake += staked_balance;
-
-            accounts[item["name"]].set("staked_balance", std::to_string(staked_balance));
-        }
 
         for(auto acc : accounts){
             double stake_rate = get_acc_double_value(acc.first,"staked_balance") / (double) total_stake;
