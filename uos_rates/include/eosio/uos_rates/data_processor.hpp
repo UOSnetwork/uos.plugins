@@ -50,14 +50,21 @@ namespace uos {
         string prev_max_network_activity = "0";
 
         //intermediate
-        set<std::string> actor_ids;
-        set<std::string> content_ids;
+        int32_t start_block;
+        int32_t end_block;
+        int32_t activity_start_block;
+        int32_t activity_end_block;
+
+        long total_stake = 0;
         vector<std::shared_ptr<singularity::relation_t>> transfer_relations;
         vector<std::shared_ptr<singularity::relation_t>> social_relations;
         vector<std::shared_ptr<singularity::relation_t>> trust_relations;//new type relations
         map<string,vector<p_sing_relation_t>> common_relations;//trust and reference
 
         vector<singularity::transaction_t> activity_relations;
+
+        //trx rejects from history
+        map<std::string,std::vector<std::string>> trx_rejects;
 
         //output
         map<string, fc::mutable_variant_object> accounts;
@@ -87,21 +94,21 @@ namespace uos {
 
         void prepare_actor_ids();
 
-        void convert_transactions_to_relations();
-        vector<std::shared_ptr<singularity::relation_t>> parse_token_transaction(fc::variant trx);
-        vector<std::shared_ptr<singularity::relation_t>> parse_social_transaction(fc::variant trx);
-        /**
-         * @brief parse_trust_transaction deprecated
-         * @param trx
-         * @return
-         */
-        vector<std::shared_ptr<singularity::relation_t>> parse_trust_transaction(fc::variant trx);
+        void set_block_limits();
 
-        map<string,vector<p_sing_relation_t>> parse_ext_social_transaction(fc::variant trx);
+        void process_transaction_history();
+        void process_old_social_transaction(fc::variant trx);
+        void process_generic_social_transaction(fc::variant trx);
+        void process_transfer_transaction(fc::variant trx);
 
-        void add_lost_items(fc::variant trx);
+        void add_organization( std::string creator, std::string organization, uint32_t block);
+        void add_content( std::string author, std::string content, uint32_t block);
+        void add_upvote( std::string from, std::string to, uint32_t block);
+        void add_downvote( std::string from, std::string to, uint32_t block);
+        void add_transfer( std::string from, std::string to, uint64_t quantity, uint32_t block);
+        void add_trust( std::string from, std::string to, uint32_t block);
+        void add_referral( std::string from, std::string to, uint32_t block);
 
-        void calculate_validity_accounts();
         void calculate_social_rates();
         void set_intermediate_results();
         void calculate_transfer_rates();
@@ -134,333 +141,317 @@ namespace uos {
 
     void data_processor::prepare_actor_ids() {
         for(auto item : balance_snapshot) {
-            actor_ids.insert(item["name"]);
+            if(accounts.find(item["name"]) == accounts.end()){
+                accounts[item["name"]].set("origin", "balance");
+            }
+
+            string cpu_weight = item["cpu_weight"];
+            string net_weight = item["net_weight"];
+
+            if(cpu_weight == "-1") cpu_weight = "0";
+            if(net_weight == "-1") net_weight = "0";
+            long staked_balance = stol(cpu_weight) + stol(net_weight);
+            total_stake += staked_balance;
+
+            accounts[item["name"]].set("staked_balance", std::to_string(staked_balance));
         }
     }
 
-    void data_processor::convert_transactions_to_relations() {
-
-        int32_t end_block = current_calc_block;
-        int32_t start_block = end_block - transaction_window + 1;
+    void data_processor::set_block_limits() {
+        end_block = current_calc_block;
+        start_block = end_block - transaction_window + 1;
         if (start_block < 1)
             start_block = 1;
 
-        int32_t activity_end_block = end_block;
-        int32_t activity_start_block = end_block - activity_window + 1;
+        activity_end_block = end_block;
+        activity_start_block = end_block - activity_window + 1;
         if (activity_start_block < 1)
             activity_start_block = 1;
+    }
 
+    void data_processor::process_transaction_history() {
         for(auto trx : source_transactions){
+            try {
+                //reject if transaction contains \n
+                auto json = fc::json::to_string(trx);
+                if(json.find("\n") != std::string::npos ||
+                   json.find("\\n") != std::string::npos ||
+                   json.find("\r") != std::string::npos ||
+                   json.find("\\r") != std::string::npos){
+                    trx_rejects["newline"].push_back(json);
+                    continue;
+                }
 
-            //add the lost items regardless of the block number
-            if(trx["acc"].as_string() == "uos.activity") {
-                add_lost_items(trx);
+                if(trx["acc"].as_string() == "uos.activity" && trx["action"].as_string() != "socialaction") {
+                    process_old_social_transaction(trx);
+                }
+                if(trx["acc"].as_string() == "uos.activity" && trx["action"].as_string() == "socialaction") {
+                    process_generic_social_transaction(trx);
+                }
+                if(trx["acc"].as_string() == "eosio.token") {
+                    process_transfer_transaction(trx);
+                }
             }
+            catch (std::exception &ex){
+                trx_rejects["parsing_error"].push_back(fc::json::to_string(trx));
+                elog(ex.what());
+                }
+            catch (...){
+                trx_rejects["parsing_error"].push_back(fc::json::to_string(trx));
+            }
+        }
+    }
 
-            vector<std::shared_ptr<singularity::relation_t>> relations;
-            map<string,vector<p_sing_relation_t>> com_relations;
+    void data_processor::process_old_social_transaction(fc::variant trx) {
+        
+        auto block_num = stoi(trx["block_num"].as_string());
+
+        if (trx["action"].as_string() == "makecontent" && trx["data"]["content_type_id"].as_string() == "4" ) {
+            add_organization(
+                trx["data"]["acc"].as_string(),
+                trx["data"]["content_id"].as_string(),
+                block_num);
+        }
+
+        if (trx["action"].as_string() == "makecontent" && trx["data"]["content_type_id"].as_string() != "4" ) {
+            add_content(
+                trx["data"]["acc"].as_string(),
+                trx["data"]["content_id"].as_string(),
+                block_num);
+        }
+
+        if (trx["action"].as_string() == "usertocont" && trx["data"]["interaction_type_id"].as_string() == "2") {
+            add_upvote(
+                trx["data"]["acc"].as_string(),
+                trx["data"]["content_id"].as_string(),
+                block_num);
+        }
+
+        if (trx["action"].as_string() == "usertocont" && trx["data"]["interaction_type_id"].as_string() == "4") {
+            add_downvote(
+                trx["data"]["acc"].as_string(),
+                trx["data"]["content_id"].as_string(),
+                block_num);
+        }
+        
+        if (trx["action"].as_string() == "makecontorg") {
+            add_content(
+                trx["data"]["organization_id"].as_string(),
+                trx["data"]["content_id"].as_string(),
+                block_num);
+        }
+    }
+
+    void data_processor::process_generic_social_transaction(fc::variant trx) {
+        
+        auto block_num = stoi(trx["block_num"].as_string());
+        auto from = trx["data"]["acc"].as_string();
+        
+        auto action_json = trx["data"]["action_json"].as_string();
+        auto json_data = fc::json::from_string(action_json);
+
+        if(json_data["interaction"] == "trust") {
+            add_trust(
+                json_data["data"]["account_from"].as_string(),
+                json_data["data"]["account_to"].as_string(),
+                block_num);
+        } else if(json_data["interaction"] == "reference") {
+            add_referral(
+                json_data["data"]["account_from"].as_string(),
+                json_data["data"]["account_to"].as_string(),
+                block_num);
+        } else if(json_data["interaction"] == "referral") {
+            add_referral(
+                json_data["data"]["account_from"].as_string(),
+                json_data["data"]["account_to"].as_string(),
+                block_num);
+        } else {
+            trx_rejects["unused_generics"].push_back(fc::json::to_string(trx));
+        }
+    }
+
+    void data_processor::process_transfer_transaction(fc::variant trx) {
+        
+        auto block_num = stoi(trx["block_num"].as_string());
+
+        add_transfer(
+            trx["data"]["from"].as_string(),
+            trx["data"]["to"].as_string(),
+            asset::from_string(trx["data"]["quantity"].as_string()).get_amount(),
+            block_num);
+    }
+
+    void data_processor::add_organization(
+        std::string creator,
+        std::string organization,
+        uint32_t block) {
             
-            //add "trust" and "reference" transactions regardless of the block number
-            if(trx["acc"].as_string() == "uos.activity" && trx["action"].as_string() == "socialaction") {
+            if(content.find(organization) != content.end()) {
+                trx_rejects["wrong_actor"].push_back(std::to_string(block) + "_make_organization_" + organization);
+                return;
+            }
+            
+            if(accounts.find(organization) == accounts.end()){
+                accounts[organization].set("origin", "make_organization");
+            }
+    }
 
-                com_relations = parse_ext_social_transaction(trx);
-                if(common_relations.size() == 0)
-                     common_relations = com_relations;
-
-                for(const auto &item: com_relations) {
-                    if(item.first == "trust") {
-                        auto v_trust = item.second;
-                        for(auto &i:common_relations){
-                            if(i.first == "trust")
-                                i.second.insert(i.second.end(),v_trust.begin(),v_trust.end());
-                        }
-                    }
-                    if(item.first == "reference") {
-                        auto v_reference = item.second;
-                        for(auto &i:common_relations){
-                            if(i.first == "reference")
-                                i.second.insert(i.second.end(),v_reference.begin(),v_reference.end());
-                        }
-                    }
-                }
-
-                auto it = common_relations.find("trust");
-                if (it != common_relations.end()) {
-                    relations = it->second;
-                }
+    void data_processor::add_content(
+        std::string author,
+        std::string content_id,
+        uint32_t block) {
+            
+            if(accounts.find(content_id) != accounts.end()){
+                trx_rejects["wrong_content"].push_back(std::to_string(block) + "_make_content_" + content_id);
+                return;
             }
 
-            auto block_num = stoi(trx["block_num"].as_string());
-
-            if(block_num < start_block || block_num > end_block)
-                continue;
-
-            if(trx["acc"].as_string() == "eosio.token") {
-                relations = parse_token_transaction(trx);
-                transfer_relations.insert(transfer_relations.end(),relations.begin(), relations.end());
+            if(content.find(author) != content.end()){
+                trx_rejects["wrong_actor"].push_back(std::to_string(block) + "_make_content_" + author);
+                return;
             }
 
-            if(trx["acc"].as_string() == "uos.activity" && trx["action"].as_string() != "socialaction") {
-                relations = parse_social_transaction(trx);
-                social_relations.insert(social_relations.end(),relations.begin(), relations.end());
+            if(content.find(content_id) != content.end()){
+                trx_rejects["duplicate_content_ownership"].push_back(std::to_string(block) + "_" + content_id + "_" + author);
+                return;
             }
 
-            if(block_num < activity_start_block || block_num > activity_end_block)
-                continue;
+            if(accounts.find(author) == accounts.end()){
+                accounts[author].set("origin", "make_content");
+            }
 
-            for(auto rel : relations){
-                singularity::transaction_t tran(
-                        rel->get_weight(),
-                        0,
-                        rel->get_source(),
-                        rel->get_target(),
-                        time_t(0),
-                        0,
-                        0,
-                        rel->get_height());
+            content[content_id].set("origin", "make_content");
+
+            if(start_block < block && block <= end_block) {
+                ownership_t ownership(author, content_id, current_calc_block - block);
+                social_relations.push_back(std::make_shared<ownership_t>(ownership));
+            }
+
+            if(activity_start_block < block && block <= activity_end_block) {
+                singularity::transaction_t tran(1,0,author,content_id,time_t(0),0,0,current_calc_block - block);
                 activity_relations.emplace_back(tran);
             }
-        }
     }
 
-    vector<std::shared_ptr<singularity::relation_t>> data_processor::parse_token_transaction(fc::variant trx){
-        auto from = trx["data"]["from"].as_string();
-        auto to = trx["data"]["to"].as_string();
-        auto quantity = asset::from_string(trx["data"]["quantity"].as_string()).get_amount();
-        auto memo = trx["data"]["memo"].as_string();
-        auto block_num = stoi(trx["block_num"].as_string());
+    void data_processor::add_upvote(
+        std::string from,
+        std::string to,
+        uint32_t block) {
+            
+            if(accounts.find(to) != accounts.end()) {
+                trx_rejects["wrong_content"].push_back(std::to_string(block) + "_upvote_" + to);
+                return;
+            }
 
-        transaction_t transfer(quantity,from, to,0 , current_calc_block - block_num);
+            if(content.find(from) != content.end()) {
+                trx_rejects["wrong_actor"].push_back(std::to_string(block) + "_upvote_" + from);
+                return;
+            }
 
-        vector<std::shared_ptr<singularity::relation_t>> result;
-        result.push_back(std::make_shared<transaction_t>(transfer));
-        return result;
+            if(accounts.find(from) == accounts.end()) {
+                accounts[from].set("origin", "upvote");
+            }
+
+            if(content.find(to) == content.end()) {
+                content[to].set("origin", "upvote");
+            }
+
+            if(start_block < block && block <= end_block) {
+                upvote_t upvote(from, to, current_calc_block - block);
+                social_relations.push_back(std::make_shared<upvote_t>(upvote));
+            }
+
+            if(activity_start_block < block && block <= activity_end_block) {
+                singularity::transaction_t tran(1,0,from,to,time_t(0),0,0,current_calc_block - block);
+                activity_relations.emplace_back(tran);
+            }
     }
 
-    vector<std::shared_ptr<singularity::relation_t>> data_processor::parse_trust_transaction(fc::variant trx){
+    void data_processor::add_downvote(
+        std::string from,
+        std::string to,
+        uint32_t block) {
 
-        vector<std::shared_ptr<singularity::relation_t>> result;
-
-        if (trx["action"].as_string() == "socialaction" ) {
-
-            auto block_num = stoi(trx["block_num"].as_string());
-            auto block_height = current_calc_block - block_num;
-
-
-            auto from = trx["data"]["acc"].as_string();
-            auto action_json = trx["data"]["action_json"].as_string();
-
-
-            //TODO::check json is valid; check validate to name
-            if (action_json.find("trust") != std::string::npos ) {
-
-                auto json_data = fc::json::from_string(action_json);
-                auto from = json_data["data"]["account_from"].as_string();
-                auto to = json_data["data"]["account_to"].as_string();
-
-                trust_t trust(from, to, block_height);
-                result.push_back(std::make_shared<trust_t>(trust));
+            if(accounts.find(to) != accounts.end()) {
+                trx_rejects["wrong_content"].push_back(std::to_string(block) + "_downvote_" + to);
+                return;
             }
-        }
 
-        return result;
+            if(content.find(from) != content.end()) {
+                trx_rejects["wrong_actor"].push_back(std::to_string(block) + "_downvote_" + from);
+                return;
+            }
+
+            if(accounts.find(from) == accounts.end()) {
+                accounts[from].set("origin", "downvote");
+            }
+
+            if(content.find(to) == content.end()) {
+                content[to].set("origin", "downvote");
+            }
+
+            if(start_block < block && block <= end_block) {
+                downvote_t downvote(from, to, current_calc_block - block);
+                social_relations.push_back(std::make_shared<downvote_t>(downvote));
+            }
+
+            if(activity_start_block < block && block <= activity_end_block) {
+                singularity::transaction_t tran(1,0,from,to,time_t(0),0,0,current_calc_block - block);
+                activity_relations.emplace_back(tran);
+            }
+    }
+    
+    void data_processor::add_transfer(
+        std::string from,
+        std::string to,
+        uint64_t quantity,
+        uint32_t block) {
+
+            if(start_block < block && block <= end_block) {
+                transaction_t transfer(quantity,from, to,0 , current_calc_block - block);
+                transfer_relations.push_back(std::make_shared<transaction_t>(transfer));
+            }
+
+            if(activity_start_block < block && block <= activity_end_block) {
+                singularity::transaction_t tran(quantity,0,from,to,time_t(0),0,0,current_calc_block - block);
+                activity_relations.emplace_back(tran);
+            }
     }
 
-    map<string,vector<p_sing_relation_t>> data_processor::parse_ext_social_transaction(fc::variant trx)
-    {
-
-        vector<p_sing_relation_t> trust_result;
-        vector <p_sing_relation_t>reference_result;
-        map<string,vector<p_sing_relation_t>> result;
-
-        try {
-            if (trx["action"].as_string() == "socialaction") {
-
-                auto block_num = stoi(trx["block_num"].as_string());
-                auto block_height = current_calc_block - block_num;
-
-
-                auto from = trx["data"]["acc"].as_string();
-                auto action_json = trx["data"]["action_json"].as_string();
-
-
-                //TODO::check json is valid; check validate to name
-                if (action_json.find("trust") != std::string::npos) {
-
-                    auto json_data = fc::json::from_string(action_json);
-                    auto from = json_data["data"]["account_from"].as_string();
-                    auto to = json_data["data"]["account_to"].as_string();
-
-                    trust_t trust(from, to, block_height);
-                    trust_result.push_back(std::make_shared<trust_t>(trust));
-                }
-
-                if (action_json.find("reference") != std::string::npos) {
-
-
-                    auto json_data = fc::json::from_string(action_json);
-                    auto from = json_data["data"]["account_from"].as_string();
-                    auto to = json_data["data"]["account_to"].as_string();
-
-                    if (reference_trx.insert(from + to).second == false) {
-                        elog(" \n Duplicate  reference transaction: " + to + " pirate: " + from);
-                    } else {
-                        reference_t reference(from, to, block_height);
-                        reference_result.push_back(std::make_shared<reference_t>(reference));
-                    }
-
-
-                }
-
-                result.insert(make_pair("trust", trust_result));
-                result.insert(make_pair("reference", reference_result));
+    void data_processor::add_trust(
+        std::string from,
+        std::string to,
+        uint32_t block) {
+            if(accounts.find(from) == accounts.end()) {
+                trx_rejects["wrong_actor"].push_back(std::to_string(block) + "_trust_" + from);
+                return;
             }
-        }
-        catch (...){
-            elog("error when parsing extended transaction");
-            ilog(fc::json::to_string(trx));
-        }
 
-        return result;
+            if(accounts.find(to) == accounts.end()) {
+                trx_rejects["wrong_actor"].push_back(std::to_string(block) + "_trust_" + to);
+                return;
+            }
+
+            trust_t trust(from, to, current_calc_block - block);
+            common_relations["trust"].push_back(std::make_shared<trust_t>(trust));
     }
 
-    vector<std::shared_ptr<singularity::relation_t>> data_processor::parse_social_transaction(fc::variant trx){
-
-        vector<std::shared_ptr<singularity::relation_t>> result;
-
-        //do not even parse if transaction contains \n
-        auto json = fc::json::to_string(trx);
-        if(json.find("\n") != std::string::npos){
-            ilog(json);
-            return result;
-        }
-
-        auto block_num = stoi(trx["block_num"].as_string());
-        auto block_height = current_calc_block - block_num;
-
-
-        if (trx["action"].as_string() == "makecontent" ) {
-
-            auto from = trx["data"]["acc"].as_string();
-            auto to = trx["data"]["content_id"].as_string();
-            auto content_type_id = trx["data"]["content_type_id"].as_string();
-
-
-            //do not use "create orgainzation as the content" events, code 4
-            if(content_type_id == "4") {
-                actor_ids.insert(to);
-                return result;
+    void data_processor::add_referral(
+        std::string from,
+        std::string to,
+        uint32_t block){
+            if(accounts.find(from) == accounts.end()) {
+                trx_rejects["wrong_actor"].push_back(std::to_string(block) + "_referral_" + from);
+                return;
             }
 
-            if(actor_ids.find(to) != actor_ids.end()) {
-                elog("makecontent to actor mismatch " + from + " to " + to);
-                return result;
+            if(accounts.find(to) == accounts.end()) {
+                trx_rejects["wrong_actor"].push_back(std::to_string(block) + "_referral_" + to);
+                return;
             }
 
-            if(content_ids.find(from) != content_ids.end()) {
-                elog("makecontent from content mismatch " + from + " to " + to);
-                return result;
-            }
-
-            if(st_make_id_contents.insert(to).second == false)
-            {
-                elog("duplicate makecontent content_id: " + to + " account: "+ from);
-                return result;
-            }
-
-            actor_ids.insert(from);
-            content_ids.insert(to);
-            ownership_t ownership(from, to, block_height);
-            result.push_back(std::make_shared<ownership_t>(ownership));
-        }
-
-        if (trx["action"].as_string() == "usertocont") {
-
-            auto from = trx["data"]["acc"].as_string();
-            auto to = trx["data"]["content_id"].as_string();
-            auto interaction_type_id = trx["data"]["interaction_type_id"].as_string();
-
-            if(actor_ids.find(to) != actor_ids.end()) {
-                elog("usertocont to actor mismatch " + from + " to " + to);
-                return result;
-            }
-
-            if(content_ids.find(from) != content_ids.end()) {
-                elog("usertocont from content mismatch " + from + " to " + to);
-                return result;
-            }
-
-            if(interaction_type_id == "2") {
-                actor_ids.insert(from);
-                content_ids.insert(to);
-                upvote_t upvote(from, to, block_height);
-                result.push_back(std::make_shared<upvote_t>(upvote));
-            }
-            if(interaction_type_id == "4") {
-                actor_ids.insert(from);
-                content_ids.insert(to);
-                downvote_t downvote(from, to, block_height);
-                result.push_back(std::make_shared<downvote_t>(downvote));
-            }
-        }
-
-        if (trx["action"].as_string() == "makecontorg") {
-
-            auto from = trx["data"]["organization_id"].as_string();
-            auto to = trx["data"]["content_id"].as_string();
-
-            if(actor_ids.find(to) != actor_ids.end()) {
-                elog("makecontorg to actor mismatch " + from + " to " + to);
-                return result;
-            }
-
-            if(content_ids.find(from) != content_ids.end()) {
-                elog("makecontorg from content mismatch " + from + " to " + to);
-                return result;
-            }
-
-            if(st_make_id_contents.insert(to).second == false)
-            {
-                elog("duplicate makecontorg - content_id:" + to + " account: "+ from);
-                return result;
-            }
-
-            actor_ids.insert(from);
-            content_ids.insert(to);
-            ownership_t ownershiporg(from, to, block_height);
-            result.push_back(std::make_shared<ownership_t>(ownershiporg));
-        }
-
-        return result;
-    }
-
-    void data_processor::add_lost_items(fc::variant trx) {
-        if (trx["action"].as_string() == "makecontent"){
-            auto from = trx["data"]["acc"].as_string();
-            auto to = trx["data"]["content_id"].as_string();
-            auto content_type_id = trx["data"]["content_type_id"].as_string();
-
-            //add organizations as the accounts
-            if(content_type_id == "4"){
-                if(accounts.find(to) == accounts.end())
-                    accounts[to] = fc::mutable_variant_object();
-            }
-            //add the content
-            else {
-                if(prev_cumulative_emission.find(to) != prev_cumulative_emission.end())
-                {
-                    elog("makeconent to existing account mismatch" + from + " " + to);
-                    return;
-                }
-                if(actor_ids.find(to) != actor_ids.end()) {
-                    elog("makecontent to actor mismatch " + from + " to " + to);
-                    return;
-                }
-
-                if(content.find(to) == content.end())
-                    content[to] = fc::mutable_variant_object();
-            }
-        }
+            reference_t reference(from, to, current_calc_block - block);
+            common_relations["reference"].push_back(std::make_shared<reference_t>(reference));            
     }
 
     void data_processor::calculate_social_rates() {
@@ -479,7 +470,6 @@ namespace uos {
         auto social_calculator =
                 singularity::rank_calculator_factory::create_calculator_for_social_network(params);
 
-        //social_calculator->set_weights(validity);
         social_calculator->add_stack_vector(stake);
 
         social_calculator->add_block(social_relations);
@@ -552,22 +542,6 @@ namespace uos {
     }
 
     void data_processor::calculate_stake_rates() {
-
-        long total_stake = 0;
-        for(auto item : balance_snapshot){
-            if(accounts.find(item["name"]) == accounts.end())
-                accounts[item["name"]] = fc::mutable_variant_object();
-
-            string cpu_weight = item["cpu_weight"];
-            string net_weight = item["net_weight"];
-
-            if(cpu_weight == "-1") cpu_weight = "0";
-            if(net_weight == "-1") net_weight = "0";
-            long staked_balance = stol(cpu_weight) + stol(net_weight);
-            total_stake += staked_balance;
-
-            accounts[item["name"]].set("staked_balance", std::to_string(staked_balance));
-        }
 
         for(auto acc : accounts){
             double stake_rate = get_acc_double_value(acc.first,"staked_balance") / (double) total_stake;
@@ -651,81 +625,6 @@ namespace uos {
             content[cont.first].set("scaled_social_rate", to_string_10(scaled_social_rate));
         }
     }
-
-
-
-    void data_processor::calculate_validity_accounts()
-    {
-        map<string, fc::mutable_variant_object> m_accounts;
-        long total_stake = 0;
-        map <string, double > default_trust_coef;
-
-        for(auto item : balance_snapshot){
-            if(m_accounts.find(item["name"]) == m_accounts.end())
-                m_accounts[item["name"]] = fc::mutable_variant_object();
-
-            string cpu_weight = item["cpu_weight"];
-            string net_weight = item["net_weight"];
-            string name = item["name"];
-
-            if(cpu_weight == "-1") cpu_weight = "0";
-            if(net_weight == "-1") net_weight = "0";
-            long staked_balance = stol(cpu_weight) + stol(net_weight);
-            total_stake += staked_balance;
-
-            accounts[item["name"]].set("staked_balance", std::to_string(staked_balance));
-            accounts[item["name"]].set("validity", std::to_string(staked_balance));
-
-            default_trust_coef.insert(std::pair<string, double>(name, (double)staked_balance));
-        }
-
-        for(auto i: default_trust_coef )
-            default_trust_coef[i.first] = i.second/total_stake;
-
-        multimap <string,string> relation_trust;
-        map <string, set<string> > trust_relations_u;
-
-
-        auto it = common_relations.find("trust");
-        if (it != common_relations.end()) {
-            auto trust_relations = it->second;
-        for( const auto& rel : trust_relations )
-            relation_trust.insert(std::pair<string, string>(rel->get_target(), rel->get_source()));
-        }
-
-        for (multimap<string,string>::const_iterator it = relation_trust.begin(); it != relation_trust.end(); ++it)
-        {
-            set<string>& ss(trust_relations_u[it->first]);
-            ss.insert(it->second);
-        }
-
-        map<string, double > trust_coef;
-        for (map<string, set<string> >::iterator it = trust_relations_u.begin(); it != trust_relations_u.end(); ++it)
-        {
-            double  stake_others_balance = 0;
-            double coeff = 0;
-            double  stake_own_balance = get_acc_double_value(it->first,"staked_balance");
-            set<string> &st(it->second);
-            for(auto i: st){
-                stake_others_balance += get_acc_double_value(i,"staked_balance");
-                double sum_stake = stake_own_balance + stake_others_balance;
-                coeff = (stake_own_balance + stake_others_balance) /(double)total_stake;
-
-            }
-            trust_coef.insert(std::pair<string,double>(it->first, coeff));
-        }
-
-        std::swap(default_trust_coef, trust_coef);
-        default_trust_coef.insert(trust_coef.begin(), trust_coef.end());
-
-        for(auto item:default_trust_coef )
-        {
-            accounts[item.first].set("validity", to_string_10(item.second));
-            ilog("Account: " + item.first + " validity: " + to_string_10(item.second));
-        }
-        ilog("Total stake:" + to_string_10(total_stake));
-    }
-
 
     void data_processor::calculate_network_activity() {
         singularity::activity_period act_period;

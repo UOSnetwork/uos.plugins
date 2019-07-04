@@ -46,6 +46,8 @@ namespace eosio {
 
         void calculate_rates(uint32_t current_calc_block_num);
 
+        std::ofstream prepare_file(string name, uint64_t block, string hash, string extension);
+
         void save_detalization(uos::data_processor dp);
 
         void save_raw_details(
@@ -494,16 +496,15 @@ namespace eosio {
 
         //interactions format conversion
         dp.prepare_actor_ids();
-        dp.convert_transactions_to_relations();
+        dp.set_block_limits();
+        dp.process_transaction_history();
 
         //calculations of the rates and importance
-
-
-
-        dp.calculate_validity_accounts();
         dp.calculate_social_rates();
         dp.calculate_transfer_rates();
         dp.calculate_stake_rates();
+
+        dp.set_intermediate_results();
 
         dp.calculate_importance(social_importance_share,transfer_importance_share);
         dp.calculate_referrals();
@@ -526,6 +527,8 @@ namespace eosio {
             result_item item;
             item.name = name;
             item.type = "ACCOUNT";
+
+            item.origin = dp.get_acc_string_value(name, "origin");
 
             item.soc_rate = dp.get_acc_string_value(name, "social_rate");
             item.soc_rate_scaled = dp.get_acc_string_value(name, "scaled_social_rate");
@@ -557,6 +560,8 @@ namespace eosio {
             item.name = name;
             item.type = "CONTENT";
 
+            item.origin = dp.get_cont_string_value(name, "origin");
+
             item.soc_rate = dp.get_cont_string_value(name, "social_rate");
             item.soc_rate_scaled = dp.get_cont_string_value(name, "scaled_social_rate");
 
@@ -584,7 +589,6 @@ namespace eosio {
             auto name = item.first;
             fc::mutable_variant_object storage_item;
             storage_item.set("staked_balance",dp.get_acc_string_value(name, "staked_balance"));
-            storage_item.set("validity",dp.get_acc_string_10_value(name, "validity"));
             storage_item.set("importance",dp.get_acc_string_10_value(name, "importance"));
             storage_item.set("scaled_importance",dp.get_acc_string_10_value(name, "scaled_importance"));
             storage_item.set("stake_rate",dp.get_acc_string_10_value(name, "stake_rate"));
@@ -620,6 +624,14 @@ namespace eosio {
 
     }
 
+    std::ofstream uos_rates_impl::prepare_file(string name, uint64_t block, string hash, string extension){
+        auto filename = name + "_" + std::to_string(block) + "_" + hash + "." + extension;
+        auto path = dump_dir.string() + "/" + filename;
+        std::remove(path.c_str());
+        std::ofstream file(path, std::ios_base::app | std::ios_base::out);
+        return file;
+    }
+
     void uos_rates_impl::save_raw_details(
         string step,
         uint32_t block,
@@ -627,10 +639,7 @@ namespace eosio {
         singularity::activity_index_detalization_t details) {
         
         //base
-        auto filename_base = step + "_base_" + std::to_string(block) + "_" + hash + ".csv";
-        auto path_base = dump_dir.string() + "/" + filename_base;
-        std::remove(path_base.c_str());
-        std::ofstream base_file(path_base, std::ios_base::app | std::ios_base::out);
+        std::ofstream base_file = prepare_file(step + "_base", block, hash, "csv");
         for(auto item : details.base_index) {
             base_file << item.first + ";" +
                        uos::data_processor::to_string_10(item.second) + "\n";
@@ -638,10 +647,7 @@ namespace eosio {
         base_file.close();
 
         //contribution
-        auto filename_contribution = step + "_contribution_" + std::to_string(block) + "_" + hash + ".csv";
-        auto path_contribution = dump_dir.string() + "/" + filename_contribution;
-        std::remove(path_contribution.c_str());
-        std::ofstream contribution_file(path_contribution, std::ios_base::app | std::ios_base::out);
+        std::ofstream contribution_file = prepare_file(step + "_contribution", block, hash, "csv");
         for(auto item : details.activity_index_contribution) {
             for(auto subitem : item.second) {
                 contribution_file << item.first + ";" +
@@ -683,11 +689,16 @@ namespace eosio {
 
         }
 
+        //save trx rejects
+        std::ofstream rej_file = prepare_file("trx_rejects", dp.current_calc_block, dp.result_hash, "csv");
+        for(auto rej_list : dp.trx_rejects) {
+            for(auto rej : rej_list.second) {
+                rej_file << rej_list.first + ";" + rej + "\n";
+            }
+        }
+
         //save social interactions
-        auto filename_si = "soc_interactions_" + std::to_string(dp.current_calc_block) + "_" + dp.result_hash + ".txt";
-        auto path_si = dump_dir.string() + "/" + filename_si;
-        std::remove(path_si.c_str());
-        std::ofstream si_file(path_si, std::ios_base::app | std::ios_base::out);
+        std::ofstream si_file = prepare_file("soc_interactions", dp.current_calc_block, dp.result_hash, "txt");
         for(auto si : dp.social_relations) {
             si_file << si->get_name() + ";" +
                        si->get_source() + ";" +
@@ -699,10 +710,7 @@ namespace eosio {
         si_file.close();
 
         //save trust interactions
-        auto filename_tr = "trust_interactions_" + std::to_string(dp.current_calc_block) + "_" + dp.result_hash + ".txt";
-        auto path_tr = dump_dir.string() + "/" + filename_tr;
-        std::remove(path_tr.c_str());
-        std::ofstream tr_file(path_tr, std::ios_base::app | std::ios_base::out);
+        std::ofstream tr_file = prepare_file("trust_interactions", dp.current_calc_block, dp.result_hash, "txt");
         for(auto tr : dp.common_relations["trust"]) {
             tr_file << tr->get_name() + ";" +
                        tr->get_source() + ";" +
@@ -714,10 +722,7 @@ namespace eosio {
         tr_file.close();
         
         //save calculation details
-        auto filename = "soc_rate_details_" + std::to_string(dp.current_calc_block) + "_" + dp.result_hash + ".txt";
-        auto path = dump_dir.string() + "/" + filename;
-        std::remove(path.c_str());
-        std::ofstream det_file(path, std::ios_base::app | std::ios_base::out);
+        std::ofstream det_file = prepare_file("soc_rate_details", dp.current_calc_block, dp.result_hash, "txt");;
 
         //account rates sorted by rate desc
         multimap<double, string> acc_rates;
@@ -779,17 +784,6 @@ namespace eosio {
                     det_file << line + "\n";
                 }
             }
-
-//            if(dp.activity_details.stack_contribution.find(name) !=
-//               dp.activity_details.stack_contribution.end()){
-//                line = "stake: ";
-//                for(auto item : dp.activity_details.stack_contribution[name]){
-//                    line += item.first +
-//                            ":" + dp.to_string_10(item.second.koefficient) +
-//                            "*" + dp.to_string_10(item.second.rate) + " ";
-//                }
-//                det_file << line + "\n";
-//            }
 
             det_file << "\n";
         }
@@ -889,6 +883,7 @@ namespace eosio {
         vector<string> heading{
                 "name",
                 "type",
+                "origin",
                 "soc_rate",
                 "soc_rate_scaled",
                 "trans_rate",
@@ -915,6 +910,7 @@ namespace eosio {
             vector<string> vec{
                 item.second.name,
                 item.second.type,
+                item.second.origin,
                 item.second.soc_rate,
                 item.second.soc_rate_scaled,
                 item.second.trans_rate,
@@ -1157,12 +1153,6 @@ namespace eosio {
             for (uint64_t i = 1; i < num; i++) {
                 if (trx_queue.empty())
                     break;
-//                ilog("trx_queue.front() " + trx_queue.front().account + " " +
-//                             trx_queue.front().acc_from + " " +
-//                             trx_queue.front().action + " " +
-//                             fc::json::to_string(trx_queue.front().data) + " " +
-//                             trx_queue.front().priv_key + " " + " " +
-//                             trx_queue.front().pub_key);
                 if((last.account==trx_queue.front().account)&&(last.action==trx_queue.front().action)){
                     temp.push(trx_queue.front());
                     trx_queue.pop();
