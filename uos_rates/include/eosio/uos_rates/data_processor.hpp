@@ -182,10 +182,13 @@ namespace uos {
                     continue;
                 }
 
-                if(trx["acc"].as_string() == "uos.activity" && trx["action"].as_string() != "socialaction") {
+                if(trx["acc"].as_string() == "uos.activity" &&
+                   trx["action"].as_string() != "socialaction" &&
+                   trx["action"].as_string() != "socialactndt") {
                     process_old_social_transaction(trx);
                 }
-                if(trx["acc"].as_string() == "uos.activity" && trx["action"].as_string() == "socialaction") {
+                if(trx["acc"].as_string() == "uos.activity" &&
+                   (trx["action"].as_string() == "socialaction" || trx["action"].as_string() == "socialactndt")) {
                     process_generic_social_transaction(trx);
                 }
                 if(trx["acc"].as_string() == "eosio.token") {
