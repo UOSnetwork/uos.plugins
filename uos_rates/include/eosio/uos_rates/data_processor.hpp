@@ -253,7 +253,32 @@ namespace uos {
         auto action_json = trx["data"]["action_json"].as_string();
         auto json_data = fc::json::from_string(action_json);
 
-        if(json_data["interaction"] == "trust") {
+        if(json_data["interaction"] == "create_media_post_from_account") {
+            add_content(
+                json_data["data"]["account_from"].as_string(),
+                json_data["data"]["content_id"].as_string(),
+                block_num);
+        } else if(json_data["interaction"] == "create_media_post_from_organization") {
+            add_content(
+                json_data["data"]["organization_id_from"].as_string(),
+                json_data["data"]["content_id"].as_string(),
+                block_num);
+        } else if(json_data["interaction"] == "upvote") {
+            add_upvote(
+                json_data["data"]["account_from"].as_string(),
+                json_data["data"]["content_id"].as_string(),
+                block_num);
+        } else if(json_data["interaction"] == "downvote") {
+            add_downvote(
+                json_data["data"]["account_from"].as_string(),
+                json_data["data"]["content_id"].as_string(),
+                block_num);
+        } else if(json_data["interaction"] == "create_organization") {
+            add_organization(
+                json_data["data"]["account_from"].as_string(),
+                json_data["data"]["organization_id"].as_string(),
+                block_num);
+        } else if(json_data["interaction"] == "trust") {
             add_trust(
                 json_data["data"]["account_from"].as_string(),
                 json_data["data"]["account_to"].as_string(),
