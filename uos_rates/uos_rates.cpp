@@ -312,7 +312,8 @@ namespace eosio {
                    action.name != N(makecontorg) &&
                    action.name != N(transfer) &&
                    action.name != N(socialaction) &&
-                   action.name != N(socialactndt))
+                   action.name != N(socialactndt) &&
+                   action.name != N(histactndt))
                     continue;
 
                 chain_apis::read_only::abi_bin_to_json_params bins;
