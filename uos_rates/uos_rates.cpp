@@ -1432,7 +1432,7 @@ namespace eosio {
                                   std::string acc_name = json["acc_name"].as_string();
 
                                   if(my->accounts.find(acc_name) == my->accounts.end()) {
-                                      cb(200, "{}}");
+                                      cb(200, "{}");
                                       return;
                                   }
 
@@ -1500,6 +1500,41 @@ namespace eosio {
                              }
                          }
                  }});
+
+        app().get_plugin<http_plugin>().add_api(
+                {{
+                         std::string("/v1/uos_rates/get_content_details"),
+                         [this](string,string body,url_response_callback cb)mutable{
+                             try
+                             {
+                                  if (body.empty()) body = "{}";
+                                  auto json = fc::json::from_string(body);
+                                  std::string cont_name = json["cont_name"].as_string();
+
+                                  if(my->content.find(cont_name) == my->content.end()) {
+                                      cb(200, "{}");
+                                      return;
+                                  }
+
+                                  auto content = my->content[cont_name];
+                                  
+                                  fc::mutable_variant_object res_json;
+                                  res_json.set("name", cont_name);
+                                  res_json.set("values", content);
+
+                                  if (json.get_object().find("pretty") != json.get_object().end() && json["pretty"].as_bool()){
+                                      cb(200, fc::json::to_pretty_string(res_json));
+                                  } else {
+                                      cb(200, fc::json::to_string(res_json));
+                                  }
+                             }
+                             catch(...)
+                             {
+                                 cb(500, "{\"error\":\"unknown\"}\n");
+                             }
+                         }
+                 }});
+
         app().get_plugin<http_plugin>().add_api(
                 {{
                          std::string("/v1/uos_rates/get_stats"),
