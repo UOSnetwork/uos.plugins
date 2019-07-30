@@ -1535,11 +1535,12 @@ namespace eosio {
                                       item.set("from", rel.first);
                                       item.set("interaction", rel.second["name"].as_string());
                                       item.set("content", rel.second["target"].as_string());
-                                      item.set("height", rel.second["height"].as_uint64());
+                                      item.set("blocks_from_now", rel.second["height"].as_uint64());
                                       incoming.push_back(item);
                                   }
                                   std::sort(incoming.begin(), incoming.end(),
-                                            [](auto const &a, auto const &b) { return a["height"].as_uint64() < b["height"].as_uint64(); });
+                                            [](auto const &a, auto const &b) {
+                                                return a["blocks_from_now"].as_uint64() < b["blocks_from_now"].as_uint64(); });
 
                                   fc::variants outgoing;
                                   for(auto rel : my->recent_interaction_by_actor[acc_name]){
@@ -1551,7 +1552,8 @@ namespace eosio {
                                       outgoing.push_back(item);
                                   }
                                   std::sort(outgoing.begin(), outgoing.end(),
-                                            [](auto const &a, auto const &b) { return a["height"].as_uint64() < b["height"].as_uint64(); });
+                                            [](auto const &a, auto const &b) {
+                                                return a["blocks_from_now"].as_uint64() < b["blocks_from_now"].as_uint64(); });
 
                                   fc::mutable_variant_object res_json;
                                   res_json.set("name", acc_name);
