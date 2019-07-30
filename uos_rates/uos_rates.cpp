@@ -46,6 +46,8 @@ namespace eosio {
 
         void calculate_rates(uint32_t current_calc_block_num);
 
+        fc::mutable_variant_object interaction_to_variant(std::shared_ptr<singularity::relation_t> interaction);
+        
         std::ofstream prepare_file(string name, uint64_t block, string hash, string extension);
 
         void save_detalization(uos::data_processor dp);
@@ -140,6 +142,13 @@ namespace eosio {
         std::map<string, fc::mutable_variant_object> accounts;
         std::map<string, fc::mutable_variant_object> content;
         fc::mutable_variant_object stats;
+
+        std::map<string, fc::mutable_variant_object> ownership_by_content;
+        std::map<string, std::vector<fc::mutable_variant_object>> ownership_by_owner;
+        std::map<string, std::vector<fc::mutable_variant_object>> interactions_by_content;
+        std::map<string, std::vector<fc::mutable_variant_object>> interactions_by_actor;
+        std::map<string, std::map<string, fc::mutable_variant_object>> recent_interaction_by_owner;
+        std::map<string, std::map<string, fc::mutable_variant_object>> recent_interaction_by_actor;
 
         uos::merkle_tree<string> mtree;
 
@@ -586,6 +595,7 @@ namespace eosio {
         }
 
         //update current results
+        //accounts
         accounts.clear();
         for(auto item : dp.accounts) {
             auto name = item.first;
@@ -605,6 +615,7 @@ namespace eosio {
             accounts[name] = storage_item;
         }
 
+        //content
         content.clear();
         for(auto item : dp.content) {
             auto name = item.first;
@@ -614,6 +625,7 @@ namespace eosio {
             content[name] = storage_item;
         }
 
+        //stats
         stats.set("calculation_block",current_calc_block_num);
         stats.set("result_hash",dp.result_hash);
         stats.set("network_activity",dp.network_activity);
@@ -624,6 +636,85 @@ namespace eosio {
         stats.set("resulting_emission",dp.resulting_emission);
         stats.set("real_resulting_emission",dp.real_resulting_emission);
 
+        //relations
+        ownership_by_content.clear();
+        ownership_by_owner.clear();
+        interactions_by_content.clear();
+        interactions_by_actor.clear();
+        recent_interaction_by_owner.clear();
+        recent_interaction_by_actor.clear();
+        for(auto rel : dp.social_relations) {
+            
+            auto from = rel->get_source();
+            auto to = rel->get_target();
+
+            auto var = interaction_to_variant(rel);
+            
+            if(rel->get_name()=="OWNERSHIP"){
+                ownership_by_content[to] = var;
+                ownership_by_owner[from].push_back(var);
+            }
+
+            if(rel->get_name()=="UPVOTE" || rel->get_name()=="DOWNVOTE") {
+                interactions_by_content[to].push_back(var);
+                interactions_by_actor[from].push_back(var);
+
+                if(ownership_by_content.find(to) == ownership_by_content.end()) {
+                    //owner not found
+                    continue;
+                }
+                auto owner = ownership_by_content[to]["source"].as_string();
+                auto actor = from;
+
+                if( //first interaction
+                    recent_interaction_by_owner[owner].find(actor) == recent_interaction_by_owner[owner].end() ||
+                    // or more recent interaction
+                    rel->get_height() < recent_interaction_by_owner[owner][actor]["height"].as_uint64())
+                {
+                    recent_interaction_by_owner[owner][actor] = var;
+                    recent_interaction_by_actor[actor][owner] = var;
+                }
+            }
+        }
+
+        // string acc_name = "spirinspirin";
+        // elog("STARTED INCOMING");
+        // fc::variants incoming;
+        //                          for(auto rel : recent_interaction_by_owner[acc_name]){
+        //                               ilog(rel.first);
+        //                               fc::mutable_variant_object item;
+        //                               ilog("from");
+        //                               item.set("from", rel.first);
+        //                               ilog("interaction");
+        //                               item.set("interaction", rel.second->get_name());
+        //                               ilog("content");
+        //                               item.set("content", rel.second->get_target());
+        //                               ilog("height");
+        //                               item.set("height", rel.second->get_height());
+        //                               incoming.push_back(item);
+        //                           }
+
+        //                           elog("STARTED OUTGOING");
+        //                           fc::variants outgoing;
+        //                           for(auto rel : recent_interaction_by_actor[acc_name]){
+        //                               ilog(rel.first);
+        //                               fc::mutable_variant_object item;
+        //                               item.set("to", rel.first);
+        //                               item.set("interaction", rel.second->get_name());
+        //                               item.set("content", rel.second->get_target());
+        //                               item.set("height", rel.second->get_height());
+        //                               outgoing.push_back(item);
+        //                           }
+        // elog("FINISHED");
+    }
+
+    fc::mutable_variant_object uos_rates_impl::interaction_to_variant(std::shared_ptr<singularity::relation_t> interaction){
+        fc::mutable_variant_object result;
+        result.set("source", interaction->get_source());
+        result.set("target", interaction->get_target());
+        result.set("height", interaction->get_height());
+        result.set("name", interaction->get_name());
+        return result;
     }
 
     std::ofstream uos_rates_impl::prepare_file(string name, uint64_t block, string hash, string extension){
@@ -1437,10 +1528,36 @@ namespace eosio {
                                   }
 
                                   auto account = my->accounts[acc_name];
-                                  
+
+                                  fc::variants incoming;
+                                  for(auto rel : my->recent_interaction_by_owner[acc_name]){
+                                      fc::mutable_variant_object item;
+                                      item.set("from", rel.first);
+                                      item.set("interaction", rel.second["name"].as_string());
+                                      item.set("content", rel.second["target"].as_string());
+                                      item.set("height", rel.second["height"].as_uint64());
+                                      incoming.push_back(item);
+                                  }
+                                  std::sort(incoming.begin(), incoming.end(),
+                                            [](auto const &a, auto const &b) { return a["height"].as_uint64() < b["height"].as_uint64(); });
+
+                                  fc::variants outgoing;
+                                  for(auto rel : my->recent_interaction_by_actor[acc_name]){
+                                      fc::mutable_variant_object item;
+                                      item.set("to", rel.first);
+                                      item.set("interaction", rel.second["name"].as_string());
+                                      item.set("content", rel.second["target"].as_string());
+                                      item.set("blocks_from_now", rel.second["height"].as_uint64());
+                                      outgoing.push_back(item);
+                                  }
+                                  std::sort(outgoing.begin(), outgoing.end(),
+                                            [](auto const &a, auto const &b) { return a["height"].as_uint64() < b["height"].as_uint64(); });
+
                                   fc::mutable_variant_object res_json;
                                   res_json.set("name", acc_name);
                                   res_json.set("values", account);
+                                  res_json.set("incoming", incoming);
+                                  res_json.set("outgoing", outgoing);
 
                                   if (json.get_object().find("pretty") != json.get_object().end() && json["pretty"].as_bool()){
                                       cb(200, fc::json::to_pretty_string(res_json));
