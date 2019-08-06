@@ -601,6 +601,7 @@ namespace eosio {
             auto name = item.first;
             fc::mutable_variant_object storage_item;
             storage_item.set("staked_balance",dp.get_acc_string_value(name, "staked_balance"));
+            storage_item.set("validity",dp.get_acc_string_10_value(name, "priority"));
             storage_item.set("importance",dp.get_acc_string_10_value(name, "importance"));
             storage_item.set("scaled_importance",dp.get_acc_string_10_value(name, "scaled_importance"));
             storage_item.set("stake_rate",dp.get_acc_string_10_value(name, "stake_rate"));
