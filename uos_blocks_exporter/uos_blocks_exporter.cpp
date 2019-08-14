@@ -87,19 +87,23 @@ namespace uos_plugins{
             eosio::chain::action_trace& action_trace,
             std::shared_ptr<std::set<eosio::chain::name>> contracts= nullptr,
             std::shared_ptr<std::set<eosio::chain::name>> actors = nullptr){
-        if(contracts){
-            contracts->insert(action_trace.receipt.receiver);
+        if(!action_trace.receipt.valid()){
+            elog("NO ACTION_TRACE RECEIPT!!!");
+            sleep(100);
+        }else if(contracts){
+            contracts->insert((*action_trace.receipt).receiver);
         }
 
-        fc::mutable_variant_object action_mvariant(fc::variant(static_cast<eosio::chain::base_action_trace>(action_trace)));
-        action_mvariant["act_data"] = app().get_plugin<eosio::chain_plugin>().get_read_only_api().abi_bin_to_json({action_trace.act.account,action_trace.act.name,action_trace.act.data}).args;
+        fc::mutable_variant_object action_mvariant(fc::variant(static_cast<eosio::chain::action_trace>(action_trace)));
+        action_mvariant["act_data"] = app().get_plugin<eosio::chain_plugin>().get_read_only_api().abi_bin_to_json(
+            {action_trace.act.account,action_trace.act.name,action_trace.act.data}).args;
 //        if(actors){
 //            action_mvariant["act_data"].
 //        }
         fc::variants inline_traces;
-        for(auto item: action_trace.inline_traces){
-            inline_traces.emplace_back(fill_inline_traces(item,contracts));
-        }
+        // for(auto item: action_trace.inline_traces){
+        //     inline_traces.emplace_back(fill_inline_traces(item,contracts));
+        // }
         action_mvariant["inline_traces"]=inline_traces;
         return action_mvariant;
 
@@ -255,7 +259,7 @@ namespace uos_plugins{
                 my->accepted_transaction_catcher(atm);
             });
             cc.applied_transaction.connect([this](const auto &att) {
-                my->applied_transaction_catcher(att);
+                my->applied_transaction_catcher(std::get<0>(att));
             });
             /// prepare second thread
             my->stop = false;
