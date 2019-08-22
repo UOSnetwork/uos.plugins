@@ -65,8 +65,8 @@ namespace uos_plugins{
 
             if(irr_block_num == 1) break;
 
-            auto irr_block = cc.fetch_block_state_by_id(irr_block_id);
-            irr_block_id = irr_block->prev();
+            auto irr_block = cc.fetch_block_by_id(irr_block_id);
+            irr_block_id = irr_block->previous;
             irr_block_num = eosio::chain::block_header::num_from_id(irr_block_id);
         }
 
