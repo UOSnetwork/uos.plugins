@@ -580,7 +580,7 @@ namespace uos {
     void data_processor::calculate_importance(double social_importance_share,double transfer_importance_share) {
         if((social_importance_share + transfer_importance_share) > 1)
         {
-            social_importance_share = 0.1;
+            social_importance_share = 0.4;
             transfer_importance_share = 0.1;
             elog("Summa social_importance_share and transfer_importance_share more than 1.Set default value 0.1 and 0.1 ");
         }
