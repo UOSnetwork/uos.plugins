@@ -487,7 +487,7 @@ namespace uos {
         params.include_detailed_data = true;
         params.use_diagonal_elements = true;
         params.stack_contribution = 0;
-        params.weight_contribution = 0.8;
+        params.weight_contribution = 1;
 
         map <string, double_type> stake;
         for(auto item: accounts){
