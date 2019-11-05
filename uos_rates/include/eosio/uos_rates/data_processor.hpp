@@ -61,7 +61,7 @@ namespace uos {
         vector<std::shared_ptr<singularity::relation_t>> trust_relations;//new type relations
         map<string,vector<p_sing_relation_t>> common_relations;//trust and reference
 
-        vector<singularity::transaction_t> activity_relations;
+        vector<std::shared_ptr<singularity::relation_t>> activity_relations;
 
         //trx rejects from history
         map<std::string,std::vector<std::string>> trx_rejects;
@@ -356,8 +356,8 @@ namespace uos {
             }
 
             if(activity_start_block < block && block <= activity_end_block) {
-                singularity::transaction_t tran(1,0,author,content_id,time_t(0),0,0,current_calc_block - block);
-                activity_relations.emplace_back(tran);
+                ownership_t ownership(author, content_id, current_calc_block - block);
+                activity_relations.push_back(std::make_shared<ownership_t>(ownership));
             }
     }
 
@@ -390,8 +390,8 @@ namespace uos {
             }
 
             if(activity_start_block < block && block <= activity_end_block) {
-                singularity::transaction_t tran(1,0,from,to,time_t(0),0,0,current_calc_block - block);
-                activity_relations.emplace_back(tran);
+                upvote_t upvote(from, to, current_calc_block - block);
+                activity_relations.push_back(std::make_shared<upvote_t>(upvote));
             }
     }
 
@@ -424,8 +424,8 @@ namespace uos {
             }
 
             if(activity_start_block < block && block <= activity_end_block) {
-                singularity::transaction_t tran(1,0,from,to,time_t(0),0,0,current_calc_block - block);
-                activity_relations.emplace_back(tran);
+                downvote_t downvote(from, to, current_calc_block - block);
+                activity_relations.push_back(std::make_shared<downvote_t>(downvote));
             }
     }
     
@@ -441,8 +441,8 @@ namespace uos {
             }
 
             if(activity_start_block < block && block <= activity_end_block) {
-                singularity::transaction_t tran(quantity,0,from,to,time_t(0),0,0,current_calc_block - block);
-                activity_relations.emplace_back(tran);
+                transaction_t transfer(quantity,from, to,0 , current_calc_block - block);
+                activity_relations.push_back(std::make_shared<transaction_t>(transfer));
             }
     }
 
@@ -655,7 +655,7 @@ namespace uos {
     }
 
     void data_processor::calculate_network_activity() {
-        singularity::activity_period act_period;
+        singularity::activity_period_new act_period(activity_window, 1);
         act_period.add_block(activity_relations);
         auto activity = act_period.get_activity();
         network_activity = to_string_10(activity);
@@ -667,12 +667,16 @@ namespace uos {
     }
 
     void data_processor::calculate_emission() {
-        singularity::emission_calculator_new em_calculator;
-        auto target_emission_d = em_calculator.get_target_emission(stod(network_activity), 0, activity_monetary_value);
+        singularity::emission_parameters_t params;
+        params.yearly_emission_percent = yearly_emission_percent;
+        params.emission_period_seconds = period / blocks_per_second;
+        params.activity_monetary_value = activity_monetary_value;
+        params.delay_koefficient = 0.5;
+        singularity::emission_calculator em_calculator(params);
+
+        auto target_emission_d = em_calculator.get_target_emission(stod(network_activity), 0);
         target_emission = to_string_4(target_emission_d);
-        auto emission_limit_d = em_calculator.get_emission_limit(initial_token_supply,
-                                                               yearly_emission_percent,
-                                                               period / blocks_per_second);
+        auto emission_limit_d = em_calculator.get_emission_limit(initial_token_supply);
         emission_limit = to_string_4(emission_limit_d);
 
         double full_prev_emission_d = 0;
@@ -685,7 +689,7 @@ namespace uos {
         full_prev_emission = to_string_4(full_prev_emission_d);
 
         auto resulting_emission_d = em_calculator.get_resulting_emission(
-                stod(target_emission) - full_prev_emission_d, stod(emission_limit), 0.5);
+                stod(target_emission) - full_prev_emission_d, stod(emission_limit));
         resulting_emission = to_string_4(resulting_emission_d);
 
 

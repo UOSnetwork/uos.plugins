@@ -167,22 +167,22 @@ namespace eosio {
         upvote_t (std::string source, std::string target, uint64_t height):
                 relation_t(source, target, height)
         {};
-        virtual int64_t get_weight() {
+        virtual int64_t get_weight() const override {
             return 1;
         };
-        virtual int64_t get_reverse_weight() {
+        virtual int64_t get_reverse_weight() const override {
             return 0;
         };
-        virtual std::string get_name() {
+        virtual std::string get_name() const override {
             return "UPVOTE";
         };
-        virtual bool is_decayable() {
+        virtual bool is_decayable() const override {
             return true;
         };
-        virtual singularity::node_type get_source_type() {
+        virtual singularity::node_type get_source_type() const override {
             return singularity::node_type::ACCOUNT;
         };
-        virtual singularity::node_type get_target_type(){
+        virtual singularity::node_type get_target_type() const override {
             return singularity::node_type::CONTENT;
         };
     };
@@ -193,22 +193,22 @@ namespace eosio {
         trust_t (std::string source, std::string target, uint64_t height):
                 relation_t(source, target, height)
         {};
-        virtual int64_t get_weight() {
+        virtual int64_t get_weight() const override {
             return 1;
         };
-        virtual int64_t get_reverse_weight() {
+        virtual int64_t get_reverse_weight() const override {
             return 0;
         };
-        virtual std::string get_name() {
+        virtual std::string get_name() const override {
             return "TRUST";
         };
-        virtual bool is_decayable() {
+        virtual bool is_decayable() const override {
             return false;
         };
-        virtual singularity::node_type get_source_type() {
+        virtual singularity::node_type get_source_type() const override {
             return singularity::node_type::ACCOUNT;
         };
-        virtual singularity::node_type get_target_type(){
+        virtual singularity::node_type get_target_type() const override {
             return singularity::node_type::ACCOUNT;
         };
     };
@@ -220,22 +220,22 @@ namespace eosio {
         reference_t (std::string source, std::string target, uint64_t height):
                 relation_t(source, target, height)
         {};
-        virtual int64_t get_weight() {
+        virtual int64_t get_weight() const override {
             return 1;
         };
-        virtual int64_t get_reverse_weight() {
+        virtual int64_t get_reverse_weight() const override {
             return 0;
         };
-        virtual std::string get_name() {
+        virtual std::string get_name() const override {
             return "REFERENCE";
         };
-        virtual bool is_decayable() {
+        virtual bool is_decayable() const override {
             return false;
         };
-        virtual singularity::node_type get_source_type() {
+        virtual singularity::node_type get_source_type() const override {
             return singularity::node_type::ACCOUNT;
         };
-        virtual singularity::node_type get_target_type(){
+        virtual singularity::node_type get_target_type() const override {
             return singularity::node_type::ACCOUNT;
         };
     };
@@ -248,22 +248,22 @@ namespace eosio {
         downvote_t (std::string source, std::string target, uint64_t height):
                 relation_t(source, target, height)
         {};
-        virtual int64_t get_weight() {
+        virtual int64_t get_weight() const override {
             return -1;
         };
-        virtual int64_t get_reverse_weight() {
+        virtual int64_t get_reverse_weight() const override {
             return 0;
         };
-        virtual std::string get_name() {
+        virtual std::string get_name() const override {
             return "DOWNVOTE";
         };
-        virtual bool is_decayable() {
+        virtual bool is_decayable() const override {
             return true;
         };
-        virtual singularity::node_type get_source_type() {
+        virtual singularity::node_type get_source_type() const override {
             return singularity::node_type::ACCOUNT;
         };
-        virtual singularity::node_type get_target_type(){
+        virtual singularity::node_type get_target_type() const override {
             return singularity::node_type::CONTENT;
         };
     };
@@ -274,22 +274,22 @@ namespace eosio {
         ownership_t (std::string source, std::string target, uint64_t height):
                 singularity::relation_t(source, target, height)
         {};
-        virtual int64_t get_weight() {
+        virtual int64_t get_weight() const override {
             return 10;
         };
-        virtual int64_t get_reverse_weight() {
+        virtual int64_t get_reverse_weight() const override {
             return 10;
         };
-        virtual std::string get_name() {
+        virtual std::string get_name() const override {
             return "OWNERSHIP";
         };
-        virtual bool is_decayable() {
+        virtual bool is_decayable() const override {
             return false;
         };
-        virtual singularity::node_type get_source_type() {
+        virtual singularity::node_type get_source_type() const override {
             return singularity::node_type::ACCOUNT;
         };
-        virtual singularity::node_type get_target_type(){
+        virtual singularity::node_type get_target_type() const override {
             return singularity::node_type::CONTENT;
         };
     };
@@ -300,22 +300,22 @@ namespace eosio {
         ownershiporg_t (std::string source, std::string target, uint64_t height):
                 singularity::relation_t(source, target, height)
         {};
-        virtual int64_t get_weight() {
+        virtual int64_t get_weight() const override {
             return 10;
         };
-        virtual int64_t get_reverse_weight() {
+        virtual int64_t get_reverse_weight() const override {
             return 10;
         };
-        virtual std::string get_name() {
+        virtual std::string get_name() const override {
             return "ORGOWNERSHIP";
         };
-        virtual bool is_decayable() {
+        virtual bool is_decayable() const override {
             return false;
         };
-        virtual singularity::node_type get_source_type() {
+        virtual singularity::node_type get_source_type() const override {
             return singularity::node_type::ORGANIZATION;
         };
-        virtual singularity::node_type get_target_type(){
+        virtual singularity::node_type get_target_type() const override {
             return singularity::node_type::CONTENT;
         };
     };
@@ -348,13 +348,13 @@ namespace eosio {
               //  target_account_balance(target_account_balance),
                 timestamp(timestamp)
         { };
-        virtual int64_t get_weight() {
+        virtual int64_t get_weight() const override {
             return (int64_t) amount;
         };
-        virtual int64_t get_reverse_weight() {
+        virtual int64_t get_reverse_weight() const override {
             return - (int64_t) amount;
         };
-        virtual std::string get_name() {
+        virtual std::string get_name() const override {
             return "TRANSFER";
         };
         money_t get_amount()
@@ -369,13 +369,13 @@ namespace eosio {
 //        {
 //            return target_account_balance;
 //        };
-        virtual bool is_decayable() {
+        virtual bool is_decayable() const override {
             return true;
         };
-        virtual node_type get_source_type() {
+        virtual node_type get_source_type() const override {
             return node_type::ACCOUNT;
         };
-        virtual node_type get_target_type(){
+        virtual node_type get_target_type() const override {
             return node_type::ACCOUNT;
         };
     };
