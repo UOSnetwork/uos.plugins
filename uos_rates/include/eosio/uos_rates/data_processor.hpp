@@ -61,7 +61,7 @@ namespace uos {
         vector<std::shared_ptr<singularity::relation_t>> trust_relations;//new type relations
         map<string,vector<p_sing_relation_t>> common_relations;//trust and reference
 
-        vector<singularity::transaction_t> activity_relations;
+        vector<std::shared_ptr<singularity::relation_t>> activity_relations;
 
         //trx rejects from history
         map<std::string,std::vector<std::string>> trx_rejects;
@@ -356,8 +356,8 @@ namespace uos {
             }
 
             if(activity_start_block < block && block <= activity_end_block) {
-                singularity::transaction_t tran(1,0,author,content_id,time_t(0),0,0,current_calc_block - block);
-                activity_relations.emplace_back(tran);
+                ownership_t ownership(author, content_id, current_calc_block - block);
+                activity_relations.push_back(std::make_shared<ownership_t>(ownership));
             }
     }
 
@@ -390,8 +390,8 @@ namespace uos {
             }
 
             if(activity_start_block < block && block <= activity_end_block) {
-                singularity::transaction_t tran(1,0,from,to,time_t(0),0,0,current_calc_block - block);
-                activity_relations.emplace_back(tran);
+                upvote_t upvote(from, to, current_calc_block - block);
+                activity_relations.push_back(std::make_shared<upvote_t>(upvote));
             }
     }
 
@@ -424,8 +424,8 @@ namespace uos {
             }
 
             if(activity_start_block < block && block <= activity_end_block) {
-                singularity::transaction_t tran(1,0,from,to,time_t(0),0,0,current_calc_block - block);
-                activity_relations.emplace_back(tran);
+                downvote_t downvote(from, to, current_calc_block - block);
+                activity_relations.push_back(std::make_shared<downvote_t>(downvote));
             }
     }
     
@@ -441,8 +441,8 @@ namespace uos {
             }
 
             if(activity_start_block < block && block <= activity_end_block) {
-                singularity::transaction_t tran(quantity,0,from,to,time_t(0),0,0,current_calc_block - block);
-                activity_relations.emplace_back(tran);
+                transaction_t transfer(quantity,from, to,0 , current_calc_block - block);
+                activity_relations.push_back(std::make_shared<transaction_t>(transfer));
             }
     }
 
@@ -655,7 +655,7 @@ namespace uos {
     }
 
     void data_processor::calculate_network_activity() {
-        singularity::activity_period act_period;
+        singularity::activity_period_new act_period(activity_window, 1);
         act_period.add_block(activity_relations);
         auto activity = act_period.get_activity();
         network_activity = to_string_10(activity);
