@@ -672,7 +672,7 @@ namespace uos {
         params.emission_period_seconds = period / blocks_per_second;
         params.activity_monetary_value = activity_monetary_value;
         params.delay_koefficient = 0.5;
-        singularity::emission_calculator_new em_calculator(params);
+        singularity::emission_calculator em_calculator(params);
 
         auto target_emission_d = em_calculator.get_target_emission(stod(network_activity), 0);
         target_emission = to_string_4(target_emission_d);
