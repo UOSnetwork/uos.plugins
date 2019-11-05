@@ -667,12 +667,14 @@ namespace uos {
     }
 
     void data_processor::calculate_emission() {
-        singularity::emission_calculator_new em_calculator;
-        auto target_emission_d = em_calculator.get_target_emission(stod(network_activity), 0, activity_monetary_value);
+        singularity::emission_calculator_new em_calculator(
+            yearly_emission_percent,
+            period / blocks_per_second,
+            activity_monetary_value,
+            0.5);
+        auto target_emission_d = em_calculator.get_target_emission(stod(network_activity), 0);
         target_emission = to_string_4(target_emission_d);
-        auto emission_limit_d = em_calculator.get_emission_limit(initial_token_supply,
-                                                               yearly_emission_percent,
-                                                               period / blocks_per_second);
+        auto emission_limit_d = em_calculator.get_emission_limit(initial_token_supply);
         emission_limit = to_string_4(emission_limit_d);
 
         double full_prev_emission_d = 0;
@@ -685,7 +687,7 @@ namespace uos {
         full_prev_emission = to_string_4(full_prev_emission_d);
 
         auto resulting_emission_d = em_calculator.get_resulting_emission(
-                stod(target_emission) - full_prev_emission_d, stod(emission_limit), 0.5);
+                stod(target_emission) - full_prev_emission_d, stod(emission_limit));
         resulting_emission = to_string_4(resulting_emission_d);
 
 
