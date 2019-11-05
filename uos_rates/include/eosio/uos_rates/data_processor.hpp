@@ -667,11 +667,13 @@ namespace uos {
     }
 
     void data_processor::calculate_emission() {
-        singularity::emission_calculator_new em_calculator(
-            yearly_emission_percent,
-            period / blocks_per_second,
-            activity_monetary_value,
-            0.5);
+        singularity::emission_parameters_t params;
+        params.yearly_emission_percent = yearly_emission_percent;
+        params.emission_period_seconds = period / blocks_per_second;
+        params.activity_monetary_value = activity_monetary_value;
+        params.delay_koefficient = 0.5;
+        singularity::emission_calculator_new em_calculator(params);
+
         auto target_emission_d = em_calculator.get_target_emission(stod(network_activity), 0);
         target_emission = to_string_4(target_emission_d);
         auto emission_limit_d = em_calculator.get_emission_limit(initial_token_supply);
