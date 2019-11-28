@@ -44,7 +44,7 @@ namespace eosio {
 
         void run_trx_queue(uint64_t num);
 
-        void calculate_rates(uint32_t current_calc_block_num);
+        void calculate_rates(uint32_t current_calc_block_num, std::string current_calc_block_time);
 
         fc::mutable_variant_object interaction_to_variant(std::shared_ptr<singularity::relation_t> interaction);
         
@@ -176,10 +176,16 @@ namespace eosio {
              " last_calc_block " + to_string(last_calc_block) +
              " current_calc_block " + to_string(current_calc_block_num));
 
+        //determine current calculating block time
+        t.block_num_or_id = std::to_string(current_calc_block_num);
+        auto calc_block = ro_api.get_block(t);
+        auto current_calc_block_time = calc_block["timestamp"].as_string();
+
+
         if(last_calc_block < current_calc_block_num) {
 
             //perform the calculations
-            calculate_rates(current_calc_block_num);
+            calculate_rates(current_calc_block_num, current_calc_block_time);
 
             //report the result hash
             report_hash();
@@ -227,6 +233,7 @@ namespace eosio {
         auto current_head_block_number = app().get_plugin<chain_plugin>().chain().fork_db_head_block_num();
 
         if(current_head_block_number % period == 0) {
+            ilog("start saving balances for block " + to_string(current_head_block_number));
             save_userres(current_head_block_number);
             ilog("staked balances snapshot saved for block " + to_string(current_head_block_number));
         }
@@ -472,13 +479,13 @@ namespace eosio {
         }
     }
 
-    void uos_rates_impl::calculate_rates(uint32_t current_calc_block_num) {
+    void uos_rates_impl::calculate_rates(uint32_t current_calc_block_num, std::string current_calc_block_time) {
         ilog("begin calculate_rates()");
 
         if (custom_calc_block > 0)
             current_calc_block_num = custom_calc_block;
 
-        uos::data_processor dp(current_calc_block_num);
+        uos::data_processor dp(current_calc_block_num, current_calc_block_time);
 
         //input transactions
         auto trxs = get_transactions(current_calc_block_num);

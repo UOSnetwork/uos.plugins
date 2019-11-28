@@ -44,6 +44,7 @@ namespace uos {
 
         //input
         uint32_t current_calc_block;
+        std::string current_calc_block_time;
         fc::variants source_transactions;
         vector<map<string,string>> balance_snapshot;
         map<string,string> prev_cumulative_emission;
@@ -88,8 +89,9 @@ namespace uos {
         set<string> reference_trx;//unique
         string result_hash;
 
-        explicit data_processor(uint32_t calc_block){
+        explicit data_processor(uint32_t calc_block, std::string calc_block_time){
             current_calc_block = calc_block;
+            current_calc_block_time = calc_block_time;
         }
 
         void prepare_actor_ids();
@@ -98,16 +100,17 @@ namespace uos {
 
         void process_transaction_history();
         void process_old_social_transaction(fc::variant trx);
+        int32_t convert_time_to_block_num(std::string str_time);
         void process_generic_social_transaction(fc::variant trx);
         void process_transfer_transaction(fc::variant trx);
 
-        void add_organization( std::string creator, std::string organization, uint32_t block);
-        void add_content( std::string author, std::string content, uint32_t block);
-        void add_upvote( std::string from, std::string to, uint32_t block);
-        void add_downvote( std::string from, std::string to, uint32_t block);
-        void add_transfer( std::string from, std::string to, uint64_t quantity, uint32_t block);
-        void add_trust( std::string from, std::string to, uint32_t block);
-        void add_referral( std::string from, std::string to, uint32_t block);
+        void add_organization( std::string creator, std::string organization, int32_t block);
+        void add_content( std::string author, std::string content, int32_t block);
+        void add_upvote( std::string from, std::string to, int32_t block);
+        void add_downvote( std::string from, std::string to, int32_t block);
+        void add_transfer( std::string from, std::string to, uint64_t quantity, int32_t block);
+        void add_trust( std::string from, std::string to, int32_t block);
+        void add_referral( std::string from, std::string to, int32_t block);
 
         void calculate_social_rates();
         void set_intermediate_results();
@@ -160,13 +163,9 @@ namespace uos {
     void data_processor::set_block_limits() {
         end_block = current_calc_block;
         start_block = end_block - transaction_window + 1;
-        if (start_block < 1)
-            start_block = 1;
 
         activity_end_block = end_block;
         activity_start_block = end_block - activity_window + 1;
-        if (activity_start_block < 1)
-            activity_start_block = 1;
     }
 
     void data_processor::process_transaction_history() {
@@ -188,7 +187,9 @@ namespace uos {
                     process_old_social_transaction(trx);
                 }
                 if(trx["acc"].as_string() == "uos.activity" &&
-                   (trx["action"].as_string() == "socialaction" || trx["action"].as_string() == "socialactndt")) {
+                   (trx["action"].as_string() == "socialaction" || 
+                    trx["action"].as_string() == "socialactndt" ||
+                    trx["action"].as_string() == "histactndt")) {
                     process_generic_social_transaction(trx);
                 }
                 if(trx["acc"].as_string() == "eosio.token") {
@@ -245,10 +246,26 @@ namespace uos {
         }
     }
 
+    int32_t data_processor::convert_time_to_block_num(std::string str_time) {
+        str_time.pop_back();
+        str_time = str_time + ".000";
+        ilog(str_time);
+        ilog(current_calc_block_time);
+        int32_t history_block_time = fc::time_point::from_iso_string(str_time).sec_since_epoch();
+        int32_t current_block_time = fc::time_point::from_iso_string(current_calc_block_time).sec_since_epoch();
+        int32_t difference = current_block_time - history_block_time;
+        ilog(current_calc_block_time + " " + str_time + " " + std::to_string(difference));
+        return - difference * 2;
+    }
+
     void data_processor::process_generic_social_transaction(fc::variant trx) {
         
         auto block_num = stoi(trx["block_num"].as_string());
         auto from = trx["data"]["acc"].as_string();
+
+        if(trx["action"].as_string() == "histactndt") {
+            block_num = convert_time_to_block_num(trx["data"]["timestamp"].as_string());
+        }
         
         auto action_json = trx["data"]["action_json"].as_string();
         auto json_data = fc::json::from_string(action_json);
@@ -312,7 +329,7 @@ namespace uos {
     void data_processor::add_organization(
         std::string creator,
         std::string organization,
-        uint32_t block) {
+        int32_t block) {
             
             if(content.find(organization) != content.end()) {
                 trx_rejects["wrong_actor"].push_back(std::to_string(block) + "_make_organization_" + organization);
@@ -327,7 +344,7 @@ namespace uos {
     void data_processor::add_content(
         std::string author,
         std::string content_id,
-        uint32_t block) {
+        int32_t block) {
             
             if(accounts.find(content_id) != accounts.end()){
                 trx_rejects["wrong_content"].push_back(std::to_string(block) + "_make_content_" + content_id);
@@ -348,7 +365,7 @@ namespace uos {
                 accounts[author].set("origin", "make_content");
             }
 
-            content[content_id].set("origin", "make_content");
+            content[content_id].set("origin", "make_content");  
 
             if(start_block < block && block <= end_block) {
                 ownership_t ownership(author, content_id, current_calc_block - block);
@@ -364,7 +381,7 @@ namespace uos {
     void data_processor::add_upvote(
         std::string from,
         std::string to,
-        uint32_t block) {
+        int32_t block) {
             
             if(accounts.find(to) != accounts.end()) {
                 trx_rejects["wrong_content"].push_back(std::to_string(block) + "_upvote_" + to);
@@ -398,7 +415,7 @@ namespace uos {
     void data_processor::add_downvote(
         std::string from,
         std::string to,
-        uint32_t block) {
+        int32_t block) {
 
             if(accounts.find(to) != accounts.end()) {
                 trx_rejects["wrong_content"].push_back(std::to_string(block) + "_downvote_" + to);
@@ -433,7 +450,7 @@ namespace uos {
         std::string from,
         std::string to,
         uint64_t quantity,
-        uint32_t block) {
+        int32_t block) {
 
             if(start_block < block && block <= end_block) {
                 transaction_t transfer(quantity,from, to,0 , current_calc_block - block);
@@ -449,7 +466,7 @@ namespace uos {
     void data_processor::add_trust(
         std::string from,
         std::string to,
-        uint32_t block) {
+        int32_t block) {
             if(accounts.find(from) == accounts.end()) {
                 trx_rejects["wrong_actor"].push_back(std::to_string(block) + "_trust_" + from);
                 return;
@@ -467,7 +484,7 @@ namespace uos {
     void data_processor::add_referral(
         std::string from,
         std::string to,
-        uint32_t block){
+        int32_t block){
             if(accounts.find(from) == accounts.end()) {
                 trx_rejects["wrong_actor"].push_back(std::to_string(block) + "_referral_" + from);
                 return;
