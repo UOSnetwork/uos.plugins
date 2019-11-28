@@ -249,12 +249,12 @@ namespace uos {
     int32_t data_processor::convert_time_to_block_num(std::string str_time) {
         str_time.pop_back();
         str_time = str_time + ".000";
-        ilog(str_time);
-        ilog(current_calc_block_time);
+        //ilog(str_time);
+        //ilog(current_calc_block_time);
         int32_t history_block_time = fc::time_point::from_iso_string(str_time).sec_since_epoch();
         int32_t current_block_time = fc::time_point::from_iso_string(current_calc_block_time).sec_since_epoch();
         int32_t difference = current_block_time - history_block_time;
-        ilog(current_calc_block_time + " " + str_time + " " + std::to_string(difference));
+        //ilog(current_calc_block_time + " " + str_time + " " + std::to_string(difference));
         return - difference * 2;
     }
 
