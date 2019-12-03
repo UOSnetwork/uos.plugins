@@ -89,7 +89,6 @@ namespace uos_plugins{
             std::shared_ptr<std::set<eosio::chain::name>> actors = nullptr){
         if(!action_trace.receipt.valid()){
             elog("NO ACTION_TRACE RECEIPT!!!");
-            sleep(100);
         }else if(contracts){
             contracts->insert((*action_trace.receipt).receiver);
         }
