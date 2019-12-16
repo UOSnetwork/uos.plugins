@@ -191,7 +191,9 @@ namespace eosio {
             report_hash();
 
             //save the result pack to file
-            save_result();
+            if(dump_calc_data) {
+                save_result();
+            }
 
             last_calc_block = current_calc_block_num;
             return;
