@@ -39,7 +39,7 @@ namespace uos {
 
         const double activity_monetary_value = 10000;
         const uint8_t blocks_per_second = 2;
-        const double yearly_emission_percent = 1.0;
+        const double yearly_emission_percent = 0.2;
         const int64_t initial_token_supply = 1000000000;
 
         //input
