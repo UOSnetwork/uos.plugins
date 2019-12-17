@@ -1231,6 +1231,10 @@ namespace eosio {
             if(find(account_list.begin(), account_list.end(), item.second.name) == account_list.end())
                 continue;
 
+            //skip zero emission values
+            if(stod(item.second.current_emission) < 0.0001)
+                continue;
+
             fc::mutable_variant_object data;
             data.set("issuer", contract_calculators);
             data.set("receiver", item.second.name);
