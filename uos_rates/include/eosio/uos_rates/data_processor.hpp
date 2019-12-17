@@ -674,7 +674,8 @@ namespace uos {
     void data_processor::calculate_network_activity() {
         singularity::activity_period_new act_period(activity_window, 1);
         act_period.add_block(activity_relations);
-        auto activity = act_period.get_activity();
+        //auto activity = act_period.get_activity();
+        auto activity = (double) activity_relations.size();
         network_activity = to_string_10(activity);
 
         double max_activity_d = stod(prev_max_network_activity);
