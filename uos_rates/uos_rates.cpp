@@ -294,7 +294,7 @@ namespace eosio {
             for(auto trx : block_trx){
                 result.emplace_back(trx);
 
-                string json = fc::json::to_string(trx);
+                string json = fc::json::to_string(trx, fc::time_point::maximum());
                 ilog(json);
                 ofstream outfile(transactions_cache_file, ios_base::app | ios_base::out);
                 outfile << json + "\n";
@@ -1056,7 +1056,7 @@ namespace eosio {
             data.set("acc", calc_name.to_string());
             data.set("hash", result.result_hash);
             data.set("block_num", result.block_num);
-            data.set("memo", fc::json::to_string(version_info));// version lib
+            data.set("memo", fc::json::to_string(version_info, fc::time_point::maximum()));// version lib
             string acc{"acc"};
             add_transaction(contract_calculators, "reporthash", data, calculator_public_key, calculator_private_key,
                             calc_name.to_string());
@@ -1070,7 +1070,7 @@ namespace eosio {
         data.set("network_activity", result.current_activity);
         data.set("emission", result.current_emission);
         data.set("total_emission", result.full_prev_emission);
-        ilog(fc::json::to_string(data));
+        ilog(fc::json::to_string(data, fc::time_point::maximum()));
         add_transaction(contract_calc_stats, "setstats", data, calculator_public_key, calculator_private_key,
                         calc_leader);
     }
@@ -1325,7 +1325,7 @@ namespace eosio {
                     true,
                     [this](const fc::static_variant<fc::exception_ptr, chain::transaction_trace_ptr>& result) -> void{
                         if (result.contains<fc::exception_ptr>()) {
-                            elog(fc::json::to_string(result.get<fc::exception_ptr>()));
+                            elog(fc::json::to_string(result.get<fc::exception_ptr>(), fc::time_point::maximum()));
                         } else {
                             auto trx_trace_ptr = result.get<chain::transaction_trace_ptr>();
 
@@ -1388,7 +1388,7 @@ namespace eosio {
                     true,
                     [this](const fc::static_variant<fc::exception_ptr, chain::transaction_trace_ptr>& result) -> void{
                     if (result.contains<fc::exception_ptr>()) {
-                        elog(fc::json::to_string(result.get<fc::exception_ptr>()));
+                        elog(fc::json::to_string(result.get<fc::exception_ptr>(), fc::time_point::maximum()));
                     } else {
                         auto trx_trace_ptr = result.get<chain::transaction_trace_ptr>();
 
@@ -1516,7 +1516,7 @@ namespace eosio {
                                   if (json.get_object().find("pretty") != json.get_object().end() && json["pretty"].as_bool()){
                                       cb(200, fc::json::to_pretty_string(res_json));
                                   } else {
-                                      cb(200, fc::json::to_string(res_json));
+                                      cb(200, fc::json::to_string(res_json, fc::time_point::maximum()));
                                   }
                              }
                              catch(...)
@@ -1578,7 +1578,7 @@ namespace eosio {
                                   if (json.get_object().find("pretty") != json.get_object().end() && json["pretty"].as_bool()){
                                       cb(200, fc::json::to_pretty_string(res_json));
                                   } else {
-                                      cb(200, fc::json::to_string(res_json));
+                                      cb(200, fc::json::to_string(res_json, fc::time_point::maximum()));
                                   }
                              }
                              catch(...)
@@ -1624,7 +1624,7 @@ namespace eosio {
                                   if (json.get_object().find("pretty") != json.get_object().end() && json["pretty"].as_bool()){
                                       cb(200, fc::json::to_pretty_string(res_json));
                                   } else {
-                                      cb(200, fc::json::to_string(res_json));
+                                      cb(200, fc::json::to_string(res_json, fc::time_point::maximum()));
                                   }
                              }
                              catch(...)
@@ -1658,7 +1658,7 @@ namespace eosio {
                                   if (json.get_object().find("pretty") != json.get_object().end() && json["pretty"].as_bool()){
                                       cb(200, fc::json::to_pretty_string(res_json));
                                   } else {
-                                      cb(200, fc::json::to_string(res_json));
+                                      cb(200, fc::json::to_string(res_json, fc::time_point::maximum()));
                                   }
                              }
                              catch(...)
