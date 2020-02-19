@@ -172,7 +172,7 @@ namespace uos {
         for(auto trx : source_transactions){
             try {
                 //reject if transaction contains \n
-                auto json = fc::json::to_string(trx);
+                auto json = fc::json::to_string(trx, fc::time_point::maximum());
                 if(json.find("\n") != std::string::npos ||
                    json.find("\\n") != std::string::npos ||
                    json.find("\r") != std::string::npos ||
@@ -197,11 +197,11 @@ namespace uos {
                 }
             }
             catch (std::exception &ex){
-                trx_rejects["parsing_error"].push_back(fc::json::to_string(trx));
+                trx_rejects["parsing_error"].push_back(fc::json::to_string(trx, fc::time_point::maximum()));
                 elog(ex.what());
                 }
             catch (...){
-                trx_rejects["parsing_error"].push_back(fc::json::to_string(trx));
+                trx_rejects["parsing_error"].push_back(fc::json::to_string(trx, fc::time_point::maximum()));
             }
         }
     }
@@ -311,7 +311,7 @@ namespace uos {
                 json_data["data"]["account_to"].as_string(),
                 block_num);
         } else {
-            trx_rejects["unused_generics"].push_back(fc::json::to_string(trx));
+            trx_rejects["unused_generics"].push_back(fc::json::to_string(trx, fc::time_point::maximum()));
         }
     }
 
