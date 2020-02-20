@@ -160,7 +160,7 @@ namespace uos_plugins{
             mblock["blocktime"]     = att->block_time;
 
             try {
-                mongo->put_action_traces(fc::json::to_string(mblock));
+                mongo->put_action_traces(fc::json::to_string(mblock, fc::time_point::maximum()));
                 if(!constracts->empty()){
                     fc::mutable_variant_object mcontr;
                     mcontr["blocknum"] = att->block_num;
@@ -168,10 +168,10 @@ namespace uos_plugins{
                     mcontr["trxid"] = att->id;
                     for(auto item : *constracts){
                         mcontr["account"] = item.to_string();
-                        mongo->put_trx_contracts(fc::json::to_string(mcontr));
+                        mongo->put_trx_contracts(fc::json::to_string(mcontr, fc::time_point::maximum()));
                     }
                 }
-                accepted_blocks_queue->push(fc::json::to_string(mblock));
+                accepted_blocks_queue->push(fc::json::to_string(mblock, fc::time_point::maximum()));
             }
             catch (mongocxx::exception &ex){
                 elog(ex.what());
@@ -293,8 +293,8 @@ namespace uos_plugins{
             try{
                 auto whitelist = fc::json::from_string(options.at("uos-mongo-whitelist-contracts").as<std::string>());
                 auto blacklist = fc::json::from_string(options.at("uos-mongo-blacklist-contracts").as<std::string>());
-                wlog(fc::json::to_string(whitelist));
-                wlog(fc::json::to_string(blacklist));
+                wlog(fc::json::to_string(whitelist, fc::time_point::maximum()));
+                wlog(fc::json::to_string(blacklist, fc::time_point::maximum()));
                 if( whitelist.get_object()["whitelist"].get_type() != fc::variant::type_id::array_type)
                     throw std::runtime_error("Whitelist not contains 'whitelist' or 'whitelist' is not array");
                 if( blacklist.get_object()["blacklist"].get_type() != fc::variant::type_id::array_type)
